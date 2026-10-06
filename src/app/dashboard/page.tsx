@@ -32,16 +32,17 @@ export default async function DashboardPage() {
 
         <div className="dashboard-stats">
           <div className="stat-card"><span>INSTITUTIONS FOLLOWED</span><strong>{follows.length}</strong></div>
-          <div className="stat-card"><span>YOUR UPDATES</span><strong>Coming next</strong></div>
+          <div className="stat-card"><span>YOUR UPDATES</span><strong>Live feed</strong></div>
         </div>
 
         <div className="dashboard-actions">
-          <Link className="button button-dark" href="/entities">Browse entities <span aria-hidden="true">→</span></Link>
+          <Link className="button button-dark" href="/feed">View my feed <span aria-hidden="true">→</span></Link>
+          <Link className="text-link" href="/entities">Manage follows</Link>
         </div>
 
         <section className="panel">
-          <h2>Your feed starts with a follow.</h2>
-          <p className="panel-subtitle">Official release collection and in-app notifications are the next build stage.</p>
+          <h2>Updates from the institutions you follow.</h2>
+          <p className="panel-subtitle">The feed shows collected official updates when their source can be linked to an entity you follow.</p>
         </section>
       </section>
     </main>

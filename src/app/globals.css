@@ -112,6 +112,18 @@ button, input { font: inherit; }
 .stat-card strong { display: block; margin-top: 8px; font-family: Georgia, "Times New Roman", serif; font-size: 27px; font-weight: 500; }
 .stat-card span { color: #7f8a82; font-size: 10px; }
 .dashboard-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 21px; }
+.dashboard-actions .text-link { align-self: center; padding: 0 8px; }
+.feed-list { display: grid; gap: 14px; margin-top: 28px; }
+.feed-card { padding: 23px 25px; border: 1px solid var(--line); border-radius: 10px; background: var(--white); }
+.feed-meta, .feed-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.feed-meta { color: #78847c; font-size: 10px; }
+.feed-meta > span { text-transform: capitalize; font-weight: 750; letter-spacing: .08em; }
+.feed-card h2 { margin: 13px 0 10px; font-family: Georgia, "Times New Roman", serif; font-size: 22px; font-weight: 500; line-height: 1.3; }
+.feed-entities { display: flex; flex-wrap: wrap; gap: 6px; }
+.feed-entities span { border-radius: 20px; padding: 5px 9px; background: var(--green-light); color: #456451; font-size: 10px; }
+.feed-excerpt { margin: 14px 0 0; color: #687773; font-size: 12px; line-height: 1.7; white-space: pre-wrap; }
+.feed-footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid #eeeee8; color: #859089; font-size: 10px; }
+.feed-footer .inline-link { flex: 0 0 auto; }
 
 @media (max-width: 760px) {
   .auth-layout { grid-template-columns: 1fr; }
@@ -142,4 +154,6 @@ button, input { font: inherit; }
   .entity-row { gap: 10px; }
   .entity-action { min-width: 86px; padding: 0 10px; }
   .dashboard-stats { grid-template-columns: 1fr; }
+  .feed-card { padding: 19px 17px; }
+  .feed-meta, .feed-footer { align-items: flex-start; flex-direction: column; }
 }
