@@ -79,8 +79,8 @@ function twoLines(value: string): [string, string] {
 function GraphNode({
   x,
   y,
-  width,
-  height,
+  radius,
+  color,
   institution,
   active,
   expanded,
@@ -89,8 +89,8 @@ function GraphNode({
 }: {
   x: number;
   y: number;
-  width: number;
-  height: number;
+  radius: number;
+  color: string;
   institution: Institution;
   active?: boolean;
   expanded?: boolean;
@@ -99,7 +99,7 @@ function GraphNode({
 }) {
   const [lineOne, lineTwo] = twoLines(institution.name);
   let actionLabel = "Select and center on";
-  if (expandable) actionLabel = expanded ? "Keep expanded and center on" : "Expand and center on";
+  if (expandable) actionLabel = `${expanded ? "Collapse" : "Expand"} and center on`;
   return (
     <g
       className={`institution-graph-node${active ? " is-active" : ""}${onClick ? " is-clickable" : ""}`}
@@ -115,23 +115,50 @@ function GraphNode({
       } : undefined}
     >
       <title>{institution.name}</title>
-      <rect x={x} y={y} width={width} height={height} rx="10" />
-      <text x={x + 13} y={y + 23}>
-        <tspan x={x + 13}>{lineOne}</tspan>
-        {lineTwo && <tspan x={x + 13} dy="16">{lineTwo}</tspan>}
+      {active && <circle className="institution-graph-node-halo" cx={x} cy={y} r={radius + 7} />}
+      <circle className="institution-graph-node-dot" cx={x} cy={y} r={radius} style={{ fill: color }} />
+      <text textAnchor="middle" x={x} y={y + radius + 18}>
+        <tspan x={x}>{lineOne}</tspan>
+        {lineTwo && <tspan x={x} dy="13">{lineTwo}</tspan>}
       </text>
-      <text className="institution-graph-kind" x={x + 13} y={y + height - 10}>{institution.kind.toUpperCase()}</text>
-      {expandable && <text className="institution-graph-expand-mark" x={x + width - 19} y={y + 23}>{expanded ? "⌄" : "+"}</text>}
+      <text className="institution-graph-kind" textAnchor="middle" x={x} y={y + radius + (lineTwo ? 28 : 17)}>{institution.kind.toUpperCase()}</text>
+      {expandable && (
+        <g className="institution-graph-expand-control" aria-hidden="true">
+          <circle cx={x + radius * 0.72} cy={y - radius * 0.72} r="8" />
+          <text x={x + radius * 0.72} y={y - radius * 0.72 + 3.5}>{expanded ? "−" : "+"}</text>
+        </g>
+      )}
     </g>
   );
 }
 
-type GraphPosition = { node: Institution; x: number; y: number; depth: number };
+type GraphPosition = { node: Institution; x: number; y: number; depth: number; radius: number; color: string };
 type PanState = { x: number; y: number };
 type DragState = { pointerId: number; startX: number; startY: number; panX: number; panY: number };
 
-const graphNodeWidth = 238;
-const graphNodeHeight = 76;
+const graphMargin = 190;
+
+function hashText(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function nodeColor(institution: Institution) {
+  if (institution.id === "republic-of-india") return "#183e34";
+  let branch = institution;
+  while (branch.parentId && branch.parentId !== "republic-of-india") {
+    branch = institutionById.get(branch.parentId) ?? branch;
+  }
+  if (branch.id === "state-and-ut-governments") return "#c5832e";
+  if (branch.id === "judiciary") return "#7865b3";
+  if (branch.id === "constitutional-bodies") return "#3484a2";
+  if (branch.id === "local-self-government") return "#4d925e";
+  return "#287c70";
+}
 
 function InstitutionGraph({
   focusId,
@@ -139,7 +166,7 @@ function InstitutionGraph({
   childrenByParent,
   expanded,
   onSelect,
-  onExpand,
+  onToggle,
   onBackToTree,
   onReset,
 }: {
@@ -148,7 +175,7 @@ function InstitutionGraph({
   childrenByParent: Map<string, Institution[]>;
   expanded: Set<string>;
   onSelect: (id: string) => void;
-  onExpand: (id: string) => void;
+  onToggle: (id: string) => void;
   onBackToTree: () => void;
   onReset: () => void;
 }) {
@@ -158,30 +185,125 @@ function InstitutionGraph({
   const [isDragging, setIsDragging] = useState(false);
   const layout = useMemo(() => {
     const root = institutionMap.find((institution) => institution.parentId === null) ?? institutionMap[0];
-    const positions = new Map<string, GraphPosition>();
-    let leafY = 48;
-    let maxDepth = 0;
+    const nodes: Array<{ node: Institution; depth: number; branchId: string }> = [];
+    const nodeById = new Map<string, Institution>();
+    function collect(node: Institution, depth: number, branchId: string) {
+      nodes.push({ node, depth, branchId });
+      nodeById.set(node.id, node);
+      const currentBranch = depth === 1 ? node.id : branchId;
+      if (!expanded.has(node.id)) return;
+      for (const child of childrenByParent.get(node.id) ?? []) collect(child, depth + 1, currentBranch);
+    }
+    collect(root, 0, root.id);
 
-    function place(node: Institution, depth: number): number {
-      maxDepth = Math.max(maxDepth, depth);
-      const children = expanded.has(node.id) ? childrenByParent.get(node.id) ?? [] : [];
-      let y: number;
-      if (children.length === 0) {
-        y = leafY;
-        leafY += 112;
-      } else {
-        const childYs = children.map((child) => place(child, depth + 1));
-        y = childYs.reduce((total, childY) => total + childY, 0) / childYs.length;
-      }
-      positions.set(node.id, { node, x: 56 + depth * 300, y, depth });
-      return y;
+    const rootChildren = childrenByParent.get(root.id) ?? [];
+    const rootAngleById = new Map(rootChildren.map((node, index) => [node.id, -Math.PI / 2 + (2 * Math.PI * index) / Math.max(1, rootChildren.length)]));
+    const work: Array<{ node: Institution; depth: number; branchId: string; x: number; y: number; vx: number; vy: number; radius: number; labelRadius: number; color: string }> = [];
+    const positionsSeed = new Map<string, { x: number; y: number }>();
+    for (const { node, depth, branchId } of nodes) {
+      const parent = node.parentId ? nodeById.get(node.parentId) : undefined;
+      const parentPosition = parent ? positionsSeed.get(parent.id) : undefined;
+      const angle = rootAngleById.get(node.id) ?? ((hashText(node.id) % 100000) / 100000) * Math.PI * 2;
+      const siblings = node.parentId ? childrenByParent.get(node.parentId) ?? [] : [];
+      const siblingSpread = Math.sqrt(Math.max(1, siblings.length));
+      const distance = depth === 0 ? 0 : depth === 1 ? 360 : 116 + siblingSpread * 18 + (hashText(`${node.id}-radius`) % 110);
+      const branchAngle = rootAngleById.get(branchId) ?? angle;
+      const initialAngle = depth === 1 ? angle : angle + branchAngle * 0.3;
+      const centerX = depth > 1 && parentPosition ? parentPosition.x : 0;
+      const centerY = depth > 1 && parentPosition ? parentPosition.y : 0;
+      const radius = node.id === root.id ? 29 : depth === 1 ? 23 : node.kind === "branch" ? 18 : 14;
+      const item = {
+        node,
+        depth,
+        branchId,
+        x: depth === 0 ? 0 : centerX + Math.cos(initialAngle) * distance,
+        y: depth === 0 ? 0 : centerY + Math.sin(initialAngle) * distance,
+        vx: 0,
+        vy: 0,
+        radius,
+        labelRadius: 38 + Math.min(node.name.length * 2.25, 112) + (node.name.length > 27 ? 10 : 0),
+        color: nodeColor(node),
+      };
+      work.push(item);
+      positionsSeed.set(node.id, item);
+    }
+    const itemById = new Map(work.map((item) => [item.node.id, item]));
+    const links = work.flatMap((item) => {
+      const parent = item.node.parentId ? itemById.get(item.node.parentId) : undefined;
+      return parent ? [{ from: parent, to: item, distance: 190, strength: 0.012 }] : [];
+    });
+    for (const relation of institutionRelations) {
+      const from = itemById.get(relation.from);
+      const to = itemById.get(relation.to);
+      if (from && to) links.push({ from, to, distance: 285, strength: 0.004 });
     }
 
-    place(root, 0);
+    // A small deterministic force simulation spreads linked nodes into visible clusters.
+    for (let iteration = 0; iteration < 95; iteration += 1) {
+      for (let leftIndex = 0; leftIndex < work.length; leftIndex += 1) {
+        const left = work[leftIndex];
+        for (let rightIndex = leftIndex + 1; rightIndex < work.length; rightIndex += 1) {
+          const right = work[rightIndex];
+          let dx = right.x - left.x;
+          let dy = right.y - left.y;
+          let distance = Math.hypot(dx, dy);
+          if (distance < 0.01) {
+            dx = 0.01 * (leftIndex + 1);
+            dy = 0.01 * (rightIndex + 1);
+            distance = Math.hypot(dx, dy);
+          }
+          const minDistance = left.labelRadius + right.labelRadius + 14;
+          const overlapForce = Math.max(0, minDistance - distance) * 0.025;
+          const ambientForce = Math.min(0.014, 95 / (distance * distance));
+          const force = overlapForce + ambientForce;
+          const fx = (dx / distance) * force;
+          const fy = (dy / distance) * force;
+          if (left.node.id !== root.id) { left.vx -= fx; left.vy -= fy; }
+          if (right.node.id !== root.id) { right.vx += fx; right.vy += fy; }
+        }
+      }
+      for (const link of links) {
+        let dx = link.to.x - link.from.x;
+        let dy = link.to.y - link.from.y;
+        const distance = Math.max(0.01, Math.hypot(dx, dy));
+        const force = (distance - link.distance) * link.strength;
+        dx = (dx / distance) * force;
+        dy = (dy / distance) * force;
+        if (link.from.node.id !== root.id) { link.from.vx += dx; link.from.vy += dy; }
+        if (link.to.node.id !== root.id) { link.to.vx -= dx; link.to.vy -= dy; }
+      }
+      for (const item of work) {
+        if (item.node.id === root.id) continue;
+        const branchRoot = itemById.get(item.branchId);
+        if (branchRoot && item.node.id !== item.branchId) {
+          item.vx += (branchRoot.x - item.x) * 0.0009;
+          item.vy += (branchRoot.y - item.y) * 0.0009;
+        }
+        item.vx *= 0.72;
+        item.vy *= 0.72;
+        const speed = Math.hypot(item.vx, item.vy);
+        if (speed > 14) { item.vx = (item.vx / speed) * 14; item.vy = (item.vy / speed) * 14; }
+        item.x += item.vx;
+        item.y += item.vy;
+      }
+    }
+
+    const minX = Math.min(...work.map((item) => item.x - item.labelRadius));
+    const maxX = Math.max(...work.map((item) => item.x + item.labelRadius));
+    const minY = Math.min(...work.map((item) => item.y - item.radius));
+    const maxY = Math.max(...work.map((item) => item.y + item.radius + 58));
+    const positions = new Map<string, GraphPosition>(work.map((item) => [item.node.id, {
+      node: item.node,
+      x: item.x - minX + graphMargin,
+      y: item.y - minY + graphMargin,
+      depth: item.depth,
+      radius: item.radius,
+      color: item.color,
+    }]));
     return {
       positions,
-      width: Math.max(1100, 56 + maxDepth * 300 + graphNodeWidth + 100),
-      height: Math.max(660, leafY + 32),
+      width: Math.max(1100, maxX - minX + graphMargin * 2),
+      height: Math.max(760, maxY - minY + graphMargin * 2),
     };
   }, [childrenByParent, expanded]);
 
@@ -191,7 +313,7 @@ function InstitutionGraph({
     if (!position || !viewport) return;
     const bounds = viewport.getBoundingClientRect();
     setPan({
-      x: bounds.width / 2 - (position.x + graphNodeWidth / 2),
+      x: bounds.width / 2 - position.x,
       y: bounds.height / 2 - position.y,
     });
   }, [layout]);
@@ -264,30 +386,30 @@ function InstitutionGraph({
           <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-label="Expanded institution hierarchy graph">
             <g className="institution-graph-edges" aria-hidden="true">
               {structuralEdges.map(({ key, from, to }) => (
-                <line key={key} x1={from.x + graphNodeWidth} y1={from.y} x2={to.x} y2={to.y} />
+                <line key={key} x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
               ))}
               {crossEdges.map((relation) => {
                 const from = positionById.get(relation.from)!;
                 const to = positionById.get(relation.to)!;
-                return <line className="institution-graph-cross-edge" key={`relation-${relation.from}-${relation.to}`} x1={from.x + graphNodeWidth / 2} y1={from.y} x2={to.x + graphNodeWidth / 2} y2={to.y} />;
+                return <line className="institution-graph-cross-edge" key={`relation-${relation.from}-${relation.to}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} />;
               })}
             </g>
-            {visiblePositions.map(({ node, x, y }) => {
+            {visiblePositions.map(({ node, x, y, radius, color }) => {
               const expandable = (childrenByParent.get(node.id)?.length ?? 0) > 0;
               return (
                 <GraphNode
                   key={node.id}
                   x={x}
-                  y={y - graphNodeHeight / 2}
-                  width={graphNodeWidth}
-                  height={graphNodeHeight}
+                  y={y}
+                  radius={radius}
+                  color={color}
                   institution={node}
                   active={selectedId === node.id}
                   expandable={expandable}
                   expanded={expanded.has(node.id)}
                   onClick={() => {
                     onSelect(node.id);
-                    if (expandable) onExpand(node.id);
+                    if (expandable) onToggle(node.id);
                     centerNode(node.id);
                   }}
                 />
@@ -301,7 +423,7 @@ function InstitutionGraph({
         <span className="institution-graph-mode-label">GRAPH VIEW</span>
         <button className="button button-quiet" type="button" onClick={onReset}>Reset map</button>
       </div>
-      <p className="institution-graph-help">Click a node to expand it and center it. Drag the background to move around the map.</p>
+      <p className="institution-graph-help">Click a node to expand or collapse its branch and center it. Drag the background to move around the network.</p>
     </>
   );
 }
@@ -372,8 +494,23 @@ export function InstitutionMap() {
     });
   }
 
-  function expandGraphNode(id: string) {
-    setGraphExpanded((current) => new Set(current).add(id));
+  function toggleGraphNode(id: string) {
+    setGraphExpanded((current) => {
+      const next = new Set(current);
+      if (!next.has(id)) {
+        next.add(id);
+        return next;
+      }
+      next.delete(id);
+      function collapseDescendants(parentId: string) {
+        for (const child of childrenByParent.get(parentId) ?? []) {
+          next.delete(child.id);
+          collapseDescendants(child.id);
+        }
+      }
+      collapseDescendants(id);
+      return next;
+    });
   }
 
   function resetGraph() {
@@ -427,7 +564,7 @@ export function InstitutionMap() {
             childrenByParent={childrenByParent}
             expanded={graphExpanded}
             onSelect={(id) => { setSelectedId(id); setFocusId(id); }}
-            onExpand={expandGraphNode}
+            onToggle={toggleGraphNode}
             onBackToTree={() => setView("tree")}
             onReset={resetGraph}
           />

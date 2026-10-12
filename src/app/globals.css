@@ -198,13 +198,15 @@ button, input { font: inherit; }
 .institution-graph-canvas svg { display: block; overflow: visible; }
 .institution-graph-edges line { stroke: #aab9ac; stroke-width: 1.6; }
 .institution-graph-edges .institution-graph-cross-edge { stroke: #819a8a; stroke-width: 1.5; stroke-dasharray: 5 5; }
-.institution-graph-node rect { fill: #fff; stroke: #dfe4db; stroke-width: 1; }
-.institution-graph-node text { fill: #27362d; font-family: var(--font-geist-sans), Arial, sans-serif; font-size: 12px; font-weight: 650; }
-.institution-graph-node .institution-graph-kind { fill: #859089; font-size: 8px; font-weight: 700; letter-spacing: .06em; }
-.institution-graph-node .institution-graph-expand-mark { fill: #52745e; font-size: 19px; font-weight: 500; }
-.institution-graph-node.is-active rect { fill: #edf2ea; stroke: #53745d; stroke-width: 1.6; }
+.institution-graph-node .institution-graph-node-dot { stroke: #fff; stroke-width: 2.5; filter: drop-shadow(0 2px 3px #20382a28); }
+.institution-graph-node .institution-graph-node-halo { fill: #53745d18; stroke: #53745d; stroke-width: 1.5; }
+.institution-graph-node text { fill: #27362d; font-family: var(--font-geist-sans), Arial, sans-serif; font-size: 10px; font-weight: 650; paint-order: stroke; stroke: #f8f8f3; stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.institution-graph-node .institution-graph-kind { fill: #78847c; font-size: 7px; font-weight: 750; letter-spacing: .07em; }
+.institution-graph-expand-control circle { fill: #fff; stroke: #e3e8e0; stroke-width: 1; }
+.institution-graph-expand-control text { fill: #304f3c; font-family: Arial, sans-serif; font-size: 12px; font-weight: 700; text-anchor: middle; stroke: none; }
+.institution-graph-node.is-active .institution-graph-node-dot { stroke: #183e34; stroke-width: 3; }
 .institution-graph-node.is-clickable { cursor: pointer; outline: none; }
-.institution-graph-node.is-clickable:hover rect, .institution-graph-node.is-clickable:focus rect { stroke: #53745d; stroke-width: 2; }
+.institution-graph-node.is-clickable:hover .institution-graph-node-dot, .institution-graph-node.is-clickable:focus .institution-graph-node-dot { stroke: #183e34; stroke-width: 3.5; }
 .institution-graph-floating-toolbar { position: absolute; z-index: 5; top: 16px; left: 16px; display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid #e2e5dc; border-radius: 10px; background: #fffefaed; box-shadow: 0 8px 28px #25362b14; }
 .institution-graph-floating-toolbar .button { min-height: 36px; padding: 0 11px; font-size: 10px; }
 .institution-graph-mode-label { padding: 0 5px; color: #7c887f; font-size: 9px; font-weight: 750; letter-spacing: .11em; }
