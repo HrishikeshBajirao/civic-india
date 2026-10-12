@@ -190,6 +190,7 @@ function GraphCardNode({
 
 type GraphPosition = { node: Institution; x: number; y: number; depth: number; radius: number; color: string };
 type PanState = { x: number; y: number };
+type GraphTransform = { pan: PanState; zoom: number };
 type DragState = { pointerId: number; startX: number; startY: number; panX: number; panY: number };
 
 const graphMargin = 190;
@@ -219,35 +220,56 @@ function nodeColor(institution: Institution) {
 function InstitutionGraph({
   graphMode,
   focusId,
+  hierarchyFocusId,
   selectedId,
   activeLayerId,
+  satelliteIds,
   childrenByParent,
   expanded,
   onSelect,
   onToggle,
+  onHierarchyNodeClick,
+  onHierarchyParent,
   onGraphModeChange,
   onBackToTree,
   onReset,
 }: {
   graphMode: GraphMode;
   focusId: string;
+  hierarchyFocusId: string;
   selectedId: string;
   activeLayerId: string;
+  satelliteIds: string[];
   childrenByParent: Map<string, Institution[]>;
   expanded: Set<string>;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
+  onHierarchyNodeClick: (id: string, expandable: boolean) => void;
+  onHierarchyParent: () => void;
   onGraphModeChange: (mode: GraphMode) => void;
   onBackToTree: () => void;
   onReset: () => void;
 }) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<DragState | null>(null);
-  const [pan, setPan] = useState<PanState>({ x: 0, y: 0 });
+  const [viewTransforms, setViewTransforms] = useState<Record<GraphMode, GraphTransform>>({
+    network: { pan: { x: 0, y: 0 }, zoom: 1 },
+    hierarchy: { pan: { x: 0, y: 0 }, zoom: 1 },
+  });
+  const viewTransformsRef = useRef(viewTransforms);
+  viewTransformsRef.current = viewTransforms;
+  const { pan, zoom } = viewTransforms[graphMode];
   const [isDragging, setIsDragging] = useState(false);
+
+  function commitViewTransform(nextTransform: GraphTransform) {
+    const nextTransforms = { ...viewTransformsRef.current, [graphMode]: nextTransform };
+    viewTransformsRef.current = nextTransforms;
+    setViewTransforms(nextTransforms);
+  }
   const layout = useMemo(() => {
     const root = institutionMap.find((institution) => institution.parentId === null) ?? institutionMap[0];
     if (graphMode === "hierarchy") {
+      const hierarchyRoot = institutionById.get(hierarchyFocusId) ?? root;
       const positions = new Map<string, GraphPosition>();
       let leafY = 48;
       let maxDepth = 0;
@@ -272,7 +294,7 @@ function InstitutionGraph({
         });
         return y;
       }
-      place(root, 0);
+      place(hierarchyRoot, 0);
       return {
         positions,
         width: Math.max(1100, 56 + maxDepth * 300 + 238 + 100),
@@ -293,7 +315,7 @@ function InstitutionGraph({
 
     const rootChildren = childrenByParent.get(root.id) ?? [];
     const rootAngleById = new Map(rootChildren.map((node, index) => [node.id, -Math.PI / 2 + (2 * Math.PI * index) / Math.max(1, rootChildren.length)]));
-    const work: Array<{ node: Institution; depth: number; branchId: string; x: number; y: number; vx: number; vy: number; radius: number; labelRadius: number; color: string }> = [];
+    const work: Array<{ node: Institution; depth: number; branchId: string; x: number; y: number; vx: number; vy: number; radius: number; halfWidth: number; topExtent: number; bottomExtent: number; labelRadius: number; color: string }> = [];
     const positionsSeed = new Map<string, { x: number; y: number }>();
     for (const { node, depth, branchId } of nodes) {
       const parent = node.parentId ? nodeById.get(node.parentId) : undefined;
@@ -307,6 +329,10 @@ function InstitutionGraph({
       const centerX = depth > 1 && parentPosition ? parentPosition.x : 0;
       const centerY = depth > 1 && parentPosition ? parentPosition.y : 0;
       const radius = node.id === root.id ? 29 : depth === 1 ? 23 : node.kind === "branch" ? 18 : 14;
+      const [firstLine, secondLine] = twoLines(node.name);
+      const halfWidth = Math.max(radius + 10, Math.max(firstLine.length, secondLine.length) * 2.9 + 9);
+      const topExtent = radius + 18;
+      const bottomExtent = radius + (secondLine ? 42 : 29);
       const item = {
         node,
         depth,
@@ -316,7 +342,10 @@ function InstitutionGraph({
         vx: 0,
         vy: 0,
         radius,
-        labelRadius: 38 + Math.min(node.name.length * 2.25, 112) + (node.name.length > 27 ? 10 : 0),
+        halfWidth,
+        topExtent,
+        bottomExtent,
+        labelRadius: halfWidth + Math.max(topExtent, bottomExtent),
         color: nodeColor(node),
       };
       work.push(item);
@@ -383,10 +412,76 @@ function InstitutionGraph({
       }
     }
 
-    const minX = Math.min(...work.map((item) => item.x - item.labelRadius));
-    const maxX = Math.max(...work.map((item) => item.x + item.labelRadius));
-    const minY = Math.min(...work.map((item) => item.y - item.radius));
-    const maxY = Math.max(...work.map((item) => item.y + item.radius + 58));
+    // Move each recently expanded branch outward as a satellite, connected to its parent by a long spoke.
+    for (const satelliteId of satelliteIds) {
+      const satellite = itemById.get(satelliteId);
+      const parent = satellite?.node.parentId ? itemById.get(satellite.node.parentId) : undefined;
+      if (!satellite || !parent) continue;
+      let dx = satellite.x - parent.x;
+      let dy = satellite.y - parent.y;
+      let distance = Math.hypot(dx, dy);
+      if (distance < 1) {
+        const angle = (hashText(satelliteId) / 0xffffffff) * Math.PI * 2;
+        dx = Math.cos(angle);
+        dy = Math.sin(angle);
+        distance = 1;
+      }
+      const offset = 500;
+      const offsetX = (dx / distance) * offset;
+      const offsetY = (dy / distance) * offset;
+      const satelliteBranch = new Set<string>();
+      function collectSatelliteBranch(id: string) {
+        if (!itemById.has(id) || satelliteBranch.has(id)) return;
+        satelliteBranch.add(id);
+        for (const child of childrenByParent.get(id) ?? []) collectSatelliteBranch(child.id);
+      }
+      collectSatelliteBranch(satelliteId);
+      for (const id of satelliteBranch) {
+        const item = itemById.get(id)!;
+        item.x += offsetX;
+        item.y += offsetY;
+      }
+    }
+
+    // Resolve exact text and marker bounds after the force pass so expansion never leaves overlapping nodes.
+    for (let iteration = 0; iteration < 140; iteration += 1) {
+      let hasOverlap = false;
+      for (let leftIndex = 0; leftIndex < work.length; leftIndex += 1) {
+        const left = work[leftIndex];
+        for (let rightIndex = leftIndex + 1; rightIndex < work.length; rightIndex += 1) {
+          const right = work[rightIndex];
+          const dx = right.x - left.x;
+          const dy = right.y - left.y;
+          const overlapX = left.halfWidth + right.halfWidth + 12 - Math.abs(dx);
+          const overlapY = Math.min(left.y + left.bottomExtent, right.y + right.bottomExtent)
+            - Math.max(left.y - left.topExtent, right.y - right.topExtent) + 12;
+          if (overlapX <= 0 || overlapY <= 0) continue;
+          hasOverlap = true;
+          const moveX = overlapX <= overlapY;
+          const overlap = (moveX ? overlapX : overlapY) + 2;
+          const sign = (moveX ? dx : dy) === 0
+            ? (hashText(`${left.node.id}-${right.node.id}`) % 2 === 0 ? 1 : -1)
+            : Math.sign(moveX ? dx : dy);
+          const leftPinned = left.node.id === root.id;
+          const rightPinned = right.node.id === root.id;
+          const leftShift = leftPinned ? 0 : rightPinned ? overlap : overlap / 2;
+          const rightShift = rightPinned ? 0 : leftPinned ? overlap : overlap / 2;
+          if (moveX) {
+            left.x -= sign * leftShift;
+            right.x += sign * rightShift;
+          } else {
+            left.y -= sign * leftShift;
+            right.y += sign * rightShift;
+          }
+        }
+      }
+      if (!hasOverlap) break;
+    }
+
+    const minX = Math.min(...work.map((item) => item.x - item.halfWidth));
+    const maxX = Math.max(...work.map((item) => item.x + item.halfWidth));
+    const minY = Math.min(...work.map((item) => item.y - item.topExtent));
+    const maxY = Math.max(...work.map((item) => item.y + item.bottomExtent));
     const positions = new Map<string, GraphPosition>(work.map((item) => [item.node.id, {
       node: item.node,
       x: item.x - minX + graphMargin,
@@ -400,23 +495,32 @@ function InstitutionGraph({
       width: Math.max(1100, maxX - minX + graphMargin * 2),
       height: Math.max(760, maxY - minY + graphMargin * 2),
     };
-  }, [childrenByParent, expanded, graphMode]);
+  }, [childrenByParent, expanded, graphMode, hierarchyFocusId, satelliteIds]);
 
   const centerNode = useCallback((id: string) => {
     const position = layout.positions.get(id);
     const viewport = viewportRef.current;
     if (!position || !viewport) return;
     const bounds = viewport.getBoundingClientRect();
-    setPan({
-      x: bounds.width / 2 - position.x,
-      y: bounds.height / 2 - position.y,
+    const currentTransform = viewTransformsRef.current[graphMode];
+    commitViewTransform({
+      ...currentTransform,
+      pan: {
+        x: bounds.width / 2 - position.x * currentTransform.zoom,
+        y: bounds.height / 2 - position.y * currentTransform.zoom,
+      },
     });
-  }, [layout]);
+  }, [layout, graphMode]);
 
+  const previousViewRef = useRef({ graphMode, focusId });
   useEffect(() => {
+    const modeChanged = previousViewRef.current.graphMode !== graphMode;
+    const focusChanged = previousViewRef.current.focusId !== focusId;
+    previousViewRef.current = { graphMode, focusId };
+    if (modeChanged && !focusChanged) return;
     const frame = window.requestAnimationFrame(() => centerNode(focusId));
     return () => window.cancelAnimationFrame(frame);
-  }, [centerNode, focusId]);
+  }, [centerNode, focusId, graphMode]);
 
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if ((event.target as Element).closest(".institution-graph-node, .institution-graph-card-node")) return;
@@ -436,7 +540,11 @@ function InstitutionGraph({
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
-    setPan({ x: drag.panX + event.clientX - drag.startX, y: drag.panY + event.clientY - drag.startY });
+    const currentTransform = viewTransformsRef.current[graphMode];
+    commitViewTransform({
+      ...currentTransform,
+      pan: { x: drag.panX + event.clientX - drag.startX, y: drag.panY + event.clientY - drag.startY },
+    });
   }
 
   function finishPointer(event: ReactPointerEvent<HTMLDivElement>) {
@@ -448,7 +556,25 @@ function InstitutionGraph({
 
   function handleWheel(event: ReactWheelEvent<HTMLDivElement>) {
     event.preventDefault();
-    setPan((current) => ({ x: current.x - event.deltaX, y: current.y - event.deltaY }));
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const pointerX = event.clientX - bounds.left;
+    const pointerY = event.clientY - bounds.top;
+    const currentTransform = viewTransformsRef.current[graphMode];
+    const currentZoom = currentTransform.zoom;
+    const nextZoom = Math.min(2.5, Math.max(0.35, currentZoom * Math.exp(-event.deltaY * 0.0012)));
+    const zoomRatio = nextZoom / currentZoom;
+    commitViewTransform({
+      zoom: nextZoom,
+      pan: {
+        x: pointerX - (pointerX - currentTransform.pan.x) * zoomRatio,
+        y: pointerY - (pointerY - currentTransform.pan.y) * zoomRatio,
+      },
+    });
+  }
+
+  function resetGraphView() {
+    commitViewTransform({ pan: { x: 0, y: 0 }, zoom: 1 });
+    onReset();
   }
 
   const visiblePositions = [...layout.positions.values()];
@@ -478,15 +604,16 @@ function InstitutionGraph({
       >
         <div
           className="institution-graph-canvas"
-          style={{ width: layout.width, height: layout.height, transform: `translate(${pan.x}px, ${pan.y}px)` }}
+          style={{ width: layout.width, height: layout.height, transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: "top left" }}
         >
           <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-label={graphMode === "network" ? "Expanded institution network graph" : "Expanded institution hierarchy graph"}>
             <g className="institution-graph-edges" aria-hidden="true">
               {structuralEdges.map(({ key, from, to }) => {
                 const x1 = graphMode === "hierarchy" ? from.x + 119 : from.x;
                 const x2 = graphMode === "hierarchy" ? to.x - 119 : to.x;
-                const opacity = graphMode === "hierarchy" || to.node.parentId === activeLayerId || to.node.id === selectedId ? 1 : 0.13;
-                return <line key={key} x1={x1} y1={from.y} x2={x2} y2={to.y} style={{ opacity }} />;
+                const opacity = graphMode === "hierarchy" || to.node.parentId === activeLayerId || to.node.id === selectedId ? 1 : 0.32;
+                const satelliteEdge = graphMode === "network" && satelliteIds.includes(to.node.id);
+                return <line className={satelliteEdge ? "institution-graph-satellite-edge" : undefined} key={key} x1={x1} y1={from.y} x2={x2} y2={to.y} style={{ opacity }} />;
               })}
               {crossEdges.map((relation) => {
                 const from = positionById.get(relation.from)!;
@@ -494,7 +621,7 @@ function InstitutionGraph({
                 const x1 = from.x;
                 const x2 = to.x;
                 const highlighted = isLayerActive(from.node) || isLayerActive(to.node) || from.node.id === selectedId || to.node.id === selectedId;
-                return <line className="institution-graph-cross-edge" key={`relation-${relation.from}-${relation.to}`} x1={x1} y1={from.y} x2={x2} y2={to.y} style={{ opacity: graphMode === "hierarchy" ? 1 : highlighted ? 0.62 : 0.09 }} />;
+                return <line className="institution-graph-cross-edge" key={`relation-${relation.from}-${relation.to}`} x1={x1} y1={from.y} x2={x2} y2={to.y} style={{ opacity: graphMode === "hierarchy" ? 1 : highlighted ? 0.72 : 0.26 }} />;
               })}
             </g>
             {visiblePositions.map(({ node, x, y, radius, color }) => {
@@ -510,9 +637,7 @@ function InstitutionGraph({
                     expandable={expandable}
                     expanded={expanded.has(node.id)}
                     onClick={() => {
-                      onSelect(node.id);
-                      if (expandable) onToggle(node.id);
-                      centerNode(node.id);
+                      onHierarchyNodeClick(node.id, expandable);
                     }}
                   />
                 );
@@ -530,7 +655,7 @@ function InstitutionGraph({
                   expandable={expandable}
                   expanded={expanded.has(node.id)}
                   layerActive={layerActive}
-                  opacity={layerActive || selectedId === node.id ? 1 : 0.2}
+                  opacity={layerActive || selectedId === node.id ? 1 : 0.48}
                   onClick={() => {
                     onSelect(node.id);
                     if (layerActive && expandable) onToggle(node.id);
@@ -544,23 +669,54 @@ function InstitutionGraph({
       </div>
       <div className="institution-graph-floating-toolbar">
         <button className="button button-quiet" type="button" onClick={onBackToTree}>← Tree view</button>
+        {graphMode === "hierarchy" && institutionById.get(hierarchyFocusId)?.parentId && (
+          <button className="button button-quiet" type="button" onClick={onHierarchyParent}>↑ Parent</button>
+        )}
         <div className="institution-graph-style-switch" role="group" aria-label="Graph layout">
           <button type="button" aria-pressed={graphMode === "hierarchy"} className={graphMode === "hierarchy" ? "is-active" : ""} onClick={() => onGraphModeChange("hierarchy")}>Hierarchy</button>
           <button type="button" aria-pressed={graphMode === "network"} className={graphMode === "network" ? "is-active" : ""} onClick={() => onGraphModeChange("network")}>Network</button>
         </div>
-        <button className="button button-quiet" type="button" onClick={onReset}>Reset map</button>
+        <button className="button button-quiet" type="button" onClick={resetGraphView}>Reset map</button>
       </div>
-      <p className="institution-graph-help">{graphMode === "network" ? "Click a faint layer to focus it, then click its nodes to expand or collapse. Drag the background to move around the network." : "Click a node to expand or collapse its branch and center it. Drag the background to move around the map."}</p>
+      <p className="institution-graph-help">{graphMode === "network" ? "Scroll to zoom; drag to move. Click a faint layer to focus it, then click its nodes to expand or collapse." : "Scroll to zoom; drag to move. Click an institution to focus on its branch; use ↑ Parent to move back up."}</p>
     </>
   );
 }
 
-function InstitutionDetails({ institution, floating = false }: { institution: Institution; floating?: boolean }) {
+type GraphDetailsMode = "floating" | "expanded" | "collapsed";
+
+function InstitutionDetails({
+  institution,
+  graphMode,
+  onGraphModeChange,
+}: {
+  institution: Institution;
+  graphMode?: Exclude<GraphDetailsMode, "collapsed">;
+  onGraphModeChange?: (mode: GraphDetailsMode) => void;
+}) {
   const parent = institution.parentId ? institutionById.get(institution.parentId) : undefined;
   const crossLinks = institutionRelations.filter((relation) => relation.from === institution.id || relation.to === institution.id);
+  const isGraphPanel = graphMode !== undefined;
   return (
-    <aside className={`institution-detail panel${floating ? " institution-detail-floating" : ""}`} aria-live="polite">
-      <p className="eyebrow">INSTITUTION DETAILS</p>
+    <aside className={`institution-detail panel${graphMode === "floating" ? " institution-detail-floating" : ""}${graphMode === "expanded" ? " institution-detail-expanded" : ""}`} aria-live="polite">
+      <div className={`institution-detail-heading${isGraphPanel ? " is-graph-panel" : ""}`}>
+        <p className="eyebrow">INSTITUTION DETAILS</p>
+        {isGraphPanel && onGraphModeChange && (
+          <div className="institution-detail-controls">
+            {graphMode === "floating" ? (
+              <>
+                <button type="button" aria-label="Expand details to the right pane" title="Expand to right pane" onClick={() => onGraphModeChange("expanded")}>⤢</button>
+                <button type="button" aria-label="Collapse node details" title="Collapse details" onClick={() => onGraphModeChange("collapsed")}>−</button>
+              </>
+            ) : (
+              <>
+                <button type="button" aria-label="Collapse details to a floating card" title="Collapse to card" onClick={() => onGraphModeChange("floating")}>⤡</button>
+                <button type="button" aria-label="Hide node details" title="Hide details" onClick={() => onGraphModeChange("collapsed")}>×</button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
       <h2>{institution.name}</h2>
       <span className="institution-kind-badge">{institution.kind}</span>
       <p className="institution-description">{institution.description}</p>
@@ -591,11 +747,15 @@ function InstitutionDetails({ institution, floating = false }: { institution: In
 export function InstitutionMap() {
   const [view, setView] = useState<View>("tree");
   const [graphMode, setGraphMode] = useState<GraphMode>("network");
+  const [graphDetailsMode, setGraphDetailsMode] = useState<GraphDetailsMode>("floating");
   const [selectedId, setSelectedId] = useState("republic-of-india");
   const [focusId, setFocusId] = useState("republic-of-india");
+  const [hierarchyFocusId, setHierarchyFocusId] = useState("republic-of-india");
   const [activeGraphLayer, setActiveGraphLayer] = useState("republic-of-india");
   const [expanded, setExpanded] = useState(() => new Set(["republic-of-india"]));
   const [graphExpanded, setGraphExpanded] = useState(() => new Set(["republic-of-india"]));
+  const [networkSatelliteIds, setNetworkSatelliteIds] = useState<string[]>([]);
+  const [hierarchyExpanded, setHierarchyExpanded] = useState(() => new Set(["republic-of-india"]));
   const childrenByParent = useMemo(() => {
     const map = new Map<string, Institution[]>();
     for (const institution of institutionMap) {
@@ -612,6 +772,7 @@ export function InstitutionMap() {
     setSelectedId(id);
     setFocusId(id);
     setActiveGraphLayer(institutionById.get(id)?.parentId ?? id);
+    setNetworkSatelliteIds([]);
     setGraphExpanded((current) => {
       const next = new Set(current);
       let parentId = institutionById.get(id)?.parentId ?? null;
@@ -627,6 +788,18 @@ export function InstitutionMap() {
   function toggleGraphNode(id: string) {
     const isCurrentlyExpanded = graphExpanded.has(id);
     setActiveGraphLayer(isCurrentlyExpanded ? (institutionById.get(id)?.parentId ?? id) : id);
+    if (isCurrentlyExpanded) {
+      setNetworkSatelliteIds((current) => current.filter((satelliteId) => {
+        let candidate = institutionById.get(satelliteId);
+        while (candidate?.parentId) {
+          if (candidate.parentId === id) return false;
+          candidate = institutionById.get(candidate.parentId);
+        }
+        return satelliteId !== id;
+      }));
+    } else {
+      setNetworkSatelliteIds((current) => [...current.filter((satelliteId) => satelliteId !== id), id]);
+    }
     setGraphExpanded((current) => {
       const next = new Set(current);
       if (!next.has(id)) {
@@ -645,11 +818,44 @@ export function InstitutionMap() {
     });
   }
 
+  function focusHierarchyNode(id: string, expandable: boolean) {
+    const institution = institutionById.get(id);
+    const parentId = institution?.parentId ?? id;
+    const isCurrentFocus = hierarchyFocusId === id;
+    setSelectedId(id);
+    setFocusId(id);
+    setActiveGraphLayer(parentId);
+    if (isCurrentFocus) {
+      if (expandable) {
+        setHierarchyExpanded((current) => current.has(id) ? new Set() : new Set([id]));
+      }
+      return;
+    }
+    setHierarchyFocusId(parentId);
+    const nextExpanded = new Set<string>();
+    if ((childrenByParent.get(parentId)?.length ?? 0) > 0) nextExpanded.add(parentId);
+    if (expandable) nextExpanded.add(id);
+    setHierarchyExpanded(nextExpanded);
+  }
+
+  function focusHierarchyParent() {
+    const parentId = institutionById.get(hierarchyFocusId)?.parentId;
+    if (!parentId) return;
+    setHierarchyFocusId(parentId);
+    setSelectedId(parentId);
+    setFocusId(parentId);
+    setActiveGraphLayer(institutionById.get(parentId)?.parentId ?? parentId);
+    setHierarchyExpanded(new Set([parentId]));
+  }
+
   function resetGraph() {
     setSelectedId("republic-of-india");
     setFocusId("republic-of-india");
+    setHierarchyFocusId("republic-of-india");
     setActiveGraphLayer("republic-of-india");
     setGraphExpanded(new Set(["republic-of-india"]));
+    setNetworkSatelliteIds([]);
+    setHierarchyExpanded(new Set(["republic-of-india"]));
   }
 
   function toggleExpanded(id: string) {
@@ -694,21 +900,31 @@ export function InstitutionMap() {
           <InstitutionGraph
             graphMode={graphMode}
             focusId={focusId}
+            hierarchyFocusId={hierarchyFocusId}
             selectedId={selectedId}
             activeLayerId={activeGraphLayer}
+            satelliteIds={networkSatelliteIds}
             childrenByParent={childrenByParent}
-            expanded={graphExpanded}
+            expanded={graphMode === "network" ? graphExpanded : hierarchyExpanded}
             onSelect={(id) => {
               setSelectedId(id);
               setFocusId(id);
               setActiveGraphLayer(institutionById.get(id)?.parentId ?? id);
             }}
             onToggle={toggleGraphNode}
+            onHierarchyNodeClick={focusHierarchyNode}
+            onHierarchyParent={focusHierarchyParent}
             onGraphModeChange={setGraphMode}
             onBackToTree={() => setView("tree")}
             onReset={resetGraph}
           />
-          <InstitutionDetails institution={selected} floating />
+          {graphDetailsMode === "collapsed" ? (
+            <button className="institution-detail-reopen" type="button" onClick={() => setGraphDetailsMode("floating")}>
+              <span aria-hidden="true">ℹ</span> Show node details
+            </button>
+          ) : (
+            <InstitutionDetails institution={selected} graphMode={graphDetailsMode} onGraphModeChange={setGraphDetailsMode} />
+          )}
         </div>
       )}
 
