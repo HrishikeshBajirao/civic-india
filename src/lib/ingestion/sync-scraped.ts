@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createCipheriv, createHash } from "node:crypto";
 import * as cheerio from "cheerio";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -53,34 +53,58 @@ function istDate(year: number, month: number, day: number, hour = 0, minute = 0,
 }
 
 function parseSourceDate(value: string | null | undefined): Date | null {
-  const text = value?.trim();
+  const text = value?.trim().replace(/^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[,\s]+/i, "");
   if (!text) return null;
 
   const zonedTimestamp = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
   if (zonedTimestamp.test(text)) {
     const parsed = new Date(text);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
+    return Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1990 ? null : parsed;
   }
 
   const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
   if (iso) {
-    return istDate(Number(iso[1]), Number(iso[2]), Number(iso[3]), Number(iso[4] ?? 0), Number(iso[5] ?? 0), Number(iso[6] ?? 0));
+    const year = Number(iso[1]);
+    if (year < 1990) return null;
+    return istDate(year, Number(iso[2]), Number(iso[3]), Number(iso[4] ?? 0), Number(iso[5] ?? 0), Number(iso[6] ?? 0));
   }
 
-  const dayMonthYear = text.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s./-]+([A-Za-z]{3,9}|\d{1,2})[,.\s/-]+(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/i);
-  if (dayMonthYear) {
-    const monthToken = dayMonthYear[2];
-    const month = /^\d+$/.test(monthToken)
-      ? Number(monthToken)
-      : new Date(`${monthToken.slice(0, 3)} 1, 2000`).getMonth() + 1;
-    const day = Number(dayMonthYear[1]);
-    const year = Number(dayMonthYear[3]);
+  const numericDate = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (numericDate) {
+    const day = Number(numericDate[1]);
+    const month = Number(numericDate[2]);
+    const year = Number(numericDate[3]);
+    if (year < 1990 || month < 1 || month > 12) return null;
     const calendarCheck = new Date(Date.UTC(year, month - 1, day));
     if (calendarCheck.getUTCMonth() !== month - 1 || calendarCheck.getUTCDate() !== day) return null;
-    return istDate(year, month, day, Number(dayMonthYear[4] ?? 0), Number(dayMonthYear[5] ?? 0), Number(dayMonthYear[6] ?? 0));
+    return istDate(year, month, day);
   }
 
-  return null;
+  const dateParts = text.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s./-]+([A-Za-z]{3,9}|\d{1,2})[,\.\s/-]+(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?$/i)
+    ?? text.match(/^([A-Za-z]{3,9})[\s./-]+(\d{1,2})(?:st|nd|rd|th)?[,\.\s/-]+(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?$/i);
+  if (!dateParts) return null;
+
+  const monthFirst = /^[A-Za-z]/.test(dateParts[1]);
+  const monthToken = monthFirst ? dateParts[1] : dateParts[2];
+  const month = /^\d+$/.test(monthToken)
+    ? Number(monthToken)
+    : new Date(monthToken.slice(0, 3) + " 1, 2000").getMonth() + 1;
+  const day = Number(monthFirst ? dateParts[2] : dateParts[1]);
+  const year = Number(dateParts[3]);
+  if (year < 1990 || month < 1 || month > 12) return null;
+  const calendarCheck = new Date(Date.UTC(year, month - 1, day));
+  if (calendarCheck.getUTCMonth() !== month - 1 || calendarCheck.getUTCDate() !== day) return null;
+
+  let hour = Number(dateParts[4] ?? 0);
+  const minute = Number(dateParts[5] ?? 0);
+  const second = Number(dateParts[6] ?? 0);
+  const meridiem = dateParts[7]?.toLowerCase();
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null;
+    if (meridiem === "pm" && hour < 12) hour += 12;
+    if (meridiem === "am" && hour === 12) hour = 0;
+  }
+  return istDate(year, month, day, hour, minute, second);
 }
 
 function findDate(text: string) {
@@ -121,17 +145,17 @@ function normalizeUrl(rawUrl: string, config: ScrapeSourceConfig) {
   return parsed.toString();
 }
 
-async function fetchText(url: string) {
+async function fetchText(url: string, headers: Record<string, string> = requestHeaders) {
   const response = await fetch(url, {
-    headers: requestHeaders,
+    headers,
     signal: AbortSignal.timeout(requestTimeoutMs),
   });
   if (!response.ok) throw new Error(`Source returned HTTP ${response.status}`);
   return { text: await response.text(), contentType: response.headers.get("content-type") ?? "" };
 }
 
-async function fetchJson<T>(url: string): Promise<T> {
-  const { text } = await fetchText(url);
+async function fetchJson<T>(url: string, headers: Record<string, string> = requestHeaders): Promise<T> {
+  const { text } = await fetchText(url, headers);
   return JSON.parse(text) as T;
 }
 
@@ -371,9 +395,240 @@ function parseDfs(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
   return items;
 }
 
+function parseVicePresident(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
+  const $ = cheerio.load(html);
+  const items: ScrapedItem[] = [];
+
+  $(".gen-card-with-image").each((_, element) => {
+    const card = $(element);
+    const anchor = card.find(".gen-card-content h2 a[href]").first();
+    const title = cleanText(anchor.text());
+    const sourceUrl = resolveLink(anchor.attr("href"), config);
+    if (!title || !sourceUrl) return;
+
+    const datePanel = card.find(".event-date-panel").first();
+    const dateLabel = cleanText(datePanel.find("p").first().text()).replace(/^Publish:\s*/i, "");
+    const year = cleanText(datePanel.find("strong").first().text());
+    const dateText = `${dateLabel} ${year}`.trim();
+    const excerpt = cleanText(card.find(".gen-card-content p").first().text());
+    items.push({
+      id: new URL(sourceUrl).pathname,
+      title,
+      sourceUrl,
+      publishedAt: parseSourceDate(dateText),
+      excerpt: extractExcerpt(excerpt, title, dateText),
+      snapshot: { publishedDate: dateText },
+    });
+  });
+
+  if (!items.length) throw new Error("Could not find news cards in the Vice President listing");
+  return items;
+}
+
+function parseMea(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
+  const $ = cheerio.load(html);
+  const items: ScrapedItem[] = [];
+
+  $(".pressRelesastBox").each((_, element) => {
+    const card = $(element);
+    const anchor = card.find("h3.pressTitle a[href]").first();
+    const title = cleanText(anchor.text());
+    const sourceUrl = resolveLink(anchor.attr("href"), config);
+    if (!title || !sourceUrl) return;
+
+    const dateText = cleanText(card.find(".date").first().text());
+    const excerpt = card.find("p").map((__, paragraph) => $(paragraph).text()).get().join(" ");
+    items.push({
+      id: new URL(sourceUrl).pathname + new URL(sourceUrl).search,
+      title,
+      sourceUrl,
+      publishedAt: parseSourceDate(dateText),
+      excerpt: extractExcerpt(excerpt, title, dateText),
+      snapshot: { publishedDate: dateText },
+    });
+  });
+
+  if (!items.length) throw new Error("Could not find release cards in the MEA publication listing");
+  return items;
+}
+
+function parseCag(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
+  const $ = cheerio.load(html);
+  const items: ScrapedItem[] = [];
+
+  $(".reportListing li").each((_, element) => {
+    const row = $(element).find(".listItem").first();
+    const title = cleanText(row.find(".listReportTitle").first().text());
+    const dateText = cleanText(row.find(".categoryText").first().text());
+    const sourceUrl = resolveLink(row.find(".downPdf a[href]").first().attr("href"), config);
+    if (!title || !sourceUrl) return;
+
+    items.push({
+      id: new URL(sourceUrl).pathname,
+      title,
+      sourceUrl,
+      publishedAt: parseSourceDate(dateText),
+      excerpt: null,
+      mimeType: "application/pdf",
+      snapshot: { publishedDate: dateText },
+    });
+  });
+
+  if (!items.length) throw new Error("Could not find press-release PDFs in the CAG listing");
+  return items;
+}
+
+type CabinetListingEntry = { title?: string; link?: string };
+
+async function fetchCabinetSecretariat(config: ScrapeSourceConfig): Promise<ScrapedItem[]> {
+  const page = await fetchText(config.listingUrl);
+  if (!page.contentType.toLowerCase().includes("html")) {
+    throw new Error(`Expected the Cabinet Secretariat page, received ${page.contentType || "an unspecified content type"}`);
+  }
+
+  const endpoint = new URL("/ajax_page_data.php?page_id=60", config.siteUrl).toString();
+  const records = await fetchJson<CabinetListingEntry[]>(endpoint, {
+    ...requestHeaders,
+    Accept: "application/json,text/html,*/*",
+    Referer: config.listingUrl,
+  });
+  const cabinetLink = records.find((record) => /cabinet decisions/i.test(cleanText(record.title)));
+  if (!cabinetLink?.link) throw new Error("The Cabinet Secretariat page did not return its Cabinet Decisions link");
+
+  const cabinetUrl = normalizeUrl(cabinetLink.link.replace(/&amp;/g, "&"), config);
+  if (!cabinetUrl) throw new Error("The Cabinet Decisions link was outside the configured official hosts");
+  const listingUrl = new URL(cabinetUrl);
+  listingUrl.searchParams.set("Lang", "1");
+  listingUrl.searchParams.set("reg", "1");
+  const listing = await fetchText(listingUrl.toString());
+  if (!listing.contentType.toLowerCase().includes("html")) {
+    throw new Error(`Expected the Cabinet Decisions listing, received ${listing.contentType || "an unspecified content type"}`);
+  }
+
+  const $ = cheerio.load(listing.text);
+  const items: ScrapedItem[] = [];
+  $(".content-area li").each((_, element) => {
+    const row = $(element);
+    const anchor = row.find('a[href*="PressReleseDetail.aspx?PRID="]').first();
+    const title = cleanText(anchor.attr("title") || anchor.text());
+    const sourceUrl = resolveLink(anchor.attr("href"), config);
+    if (!title || !sourceUrl) return;
+
+    const dateText = cleanText(row.find(".publishdatesmall").first().text());
+    items.push({
+      id: new URL(sourceUrl).searchParams.get("PRID") ?? new URL(sourceUrl).pathname,
+      title,
+      sourceUrl,
+      publishedAt: parseSourceDate(dateText.replace(/^Posted on:\s*/i, "")),
+      excerpt: null,
+      snapshot: { publishedDate: dateText, publicationHost: new URL(sourceUrl).hostname },
+    });
+  });
+
+  if (!items.length) throw new Error("Could not find Cabinet decision entries in the linked PIB listing");
+  return items;
+}
+
+type EciAttachment = {
+  record_location?: string;
+  pdf_type?: string;
+  document_type?: string;
+  extension?: string;
+};
+
+type EciApiItem = {
+  id?: string | number;
+  document_title?: string;
+  document_description?: string;
+  reference_number?: string;
+  date_of_creation?: string;
+  tags?: string;
+  document_attachments?: EciAttachment[];
+};
+
+type EciApiResponse = {
+  success?: boolean;
+  totalResults?: number;
+  results?: { data?: EciApiItem[] };
+};
+
+function encryptEciCategory(category: string, key: string) {
+  const keyBytes = Buffer.from(key, "utf8");
+  const cipher = createCipheriv(`aes-${keyBytes.byteLength * 8}-ecb`, keyBytes, null);
+  return encodeURIComponent(Buffer.concat([cipher.update(category, "utf8"), cipher.final()]).toString("base64"));
+}
+
+async function fetchEciPressReleases(config: ScrapeSourceConfig): Promise<ScrapedItem[]> {
+  const page = await fetchText(config.listingUrl);
+  if (!page.contentType.toLowerCase().includes("html")) {
+    throw new Error(`Expected the ECI press page, received ${page.contentType || "an unspecified content type"}`);
+  }
+  const $ = cheerio.load(page.text);
+  const bundlePath = $("script[src]")
+    .map((_, element) => $(element).attr("src"))
+    .get()
+    .find((src) => Boolean(src && /\/static\/js\/main\.[^/]+\.js(?:\?|$)/.test(src)));
+  if (!bundlePath) throw new Error("Could not locate the ECI public website JavaScript bundle");
+
+  const bundleUrl = new URL(bundlePath, config.siteUrl).toString();
+  const bundle = (await fetchText(bundleUrl)).text;
+  const apiBase = bundle.match(/kl="(https:\/\/www\.eci\.gov\.in\/eci-backend\/public)"/)?.[1];
+  const categoryKey = bundle.match(/ol="([^"]+)"/)?.[1];
+  const apiSecret = bundle.match(/wl="([^"]+)"/)?.[1];
+  if (!apiBase || !categoryKey || !apiSecret) throw new Error("Could not resolve the ECI public API configuration");
+
+  const category = encryptEciCategory("11", categoryKey);
+  const response = await fetchJson<EciApiResponse>(`${apiBase}/api/get-file?categories=${category}`, {
+    ...requestHeaders,
+    Accept: "application/json,*/*",
+    secret: apiSecret,
+  });
+  const records = response.results?.data;
+  if (!response.success || !Array.isArray(records)) throw new Error("The ECI public press-release API returned no records");
+
+  const items: ScrapedItem[] = records.flatMap((record) => {
+    const attachments = record.document_attachments ?? [];
+    const attachment = attachments.find((candidate) => /^en$/i.test(candidate.pdf_type ?? ""))
+      ?? attachments.find((candidate) => Boolean(candidate.record_location));
+    const sourceUrl = resolveLink(attachment?.record_location, config);
+    if (!sourceUrl) return [];
+
+    const rawTitle = cleanText(record.document_title);
+    const description = cleanText(record.document_description);
+    const referenceNumber = cleanText(record.reference_number);
+    const title = !rawTitle || /^press\s+note$/i.test(rawTitle)
+      ? (!description || /^press\s+note$/i.test(description)
+        ? `Press Note${referenceNumber ? ` (${referenceNumber})` : ""}`
+        : description)
+      : rawTitle;
+    const dateText = cleanText(record.date_of_creation);
+
+    return [{
+      id: String(record.id ?? sourceUrl),
+      title,
+      sourceUrl,
+      publishedAt: parseSourceDate(dateText),
+      excerpt: description || null,
+      language: /^hi$/i.test(attachment?.pdf_type ?? "") ? "hi" : "en",
+      mimeType: "application/pdf",
+      snapshot: {
+        referenceNumber: referenceNumber || null,
+        sourceDate: dateText,
+        apiTitle: rawTitle || null,
+        tags: cleanText(record.tags),
+      },
+    }];
+  });
+
+  if (!items.length) throw new Error("The ECI API returned no press notes with direct official attachments");
+  return items;
+}
+
 async function fetchItems(config: ScrapeSourceConfig): Promise<ScrapedItem[]> {
   if (config.parser === "lok-sabha-press-releases") return fetchLokSabha(config);
   if (config.parser === "rajya-sabha-press-releases") return fetchRajyaSabha(config);
+  if (config.parser === "cabinet-secretariat-decisions") return fetchCabinetSecretariat(config);
+  if (config.parser === "election-commission-press-releases") return fetchEciPressReleases(config);
 
   const { text, contentType } = await fetchText(config.listingUrl);
   if (!contentType.toLowerCase().includes("html")) {
@@ -386,6 +641,9 @@ async function fetchItems(config: ScrapeSourceConfig): Promise<ScrapedItem[]> {
     case "president-press-releases": return parsePresident(text, config);
     case "dea-press-releases": return parseDea(text, config);
     case "dfs-press-releases": return parseDfs(text, config);
+    case "vice-president-news-updates": return parseVicePresident(text, config);
+    case "mea-press-releases": return parseMea(text, config);
+    case "cag-press-releases": return parseCag(text, config);
   }
   throw new Error(`No scraper is registered for ${config.parser}`);
 }
@@ -444,7 +702,14 @@ async function storeItem(
       .from(documentSources)
       .where(and(eq(documentSources.sourceId, sourceId), eq(documentSources.sourceUrl, item.sourceUrl)))
       .limit(1);
-    if (existingSourceRecord.length) return { created: false, updated: false, unlinked: entityLinks.length === 0 };
+    if (existingSourceRecord.length) {
+      if (entityLinks.length) {
+        await tx.insert(documentEntities).values(
+          entityLinks.map((link) => ({ documentId: existingSourceRecord[0].documentId, ...link })),
+        ).onConflictDoNothing();
+      }
+      return { created: false, updated: false, unlinked: entityLinks.length === 0 };
+    }
 
     const existingCanonicalRecord = await tx
       .select({ documentId: documentSources.documentId })

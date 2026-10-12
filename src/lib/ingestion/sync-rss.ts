@@ -62,16 +62,21 @@ function getLanguage(title: string, fallback: string) {
 function getPublishedAt(value?: string) {
   if (!value) return null;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1990 ? null : parsed;
 }
 
-function isOfficialLink(link: string, siteUrl: string) {
+function canonicalOfficialLink(link: string, siteUrl: string) {
   try {
-    const linkHost = new URL(link).hostname.toLowerCase();
+    const parsed = new URL(link);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    const linkHost = parsed.hostname.toLowerCase().replace(/^www\./, "");
     const baseHost = new URL(siteUrl).hostname.toLowerCase().replace(/^www\./, "");
-    return linkHost === baseHost || linkHost.endsWith(`.${baseHost}`);
+    if (linkHost !== baseHost && !linkHost.endsWith(`.${baseHost}`)) return null;
+    if (parsed.protocol === "http:") parsed.protocol = "https:";
+    parsed.hash = "";
+    return parsed.toString();
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -158,9 +163,14 @@ async function syncOneSource(config: RssSourceConfig, activeEntities: Array<{ id
       : undefined;
 
     for (const item of feed.items) {
-      const title = item.title?.trim();
-      const link = item.link?.trim();
-      if (!title || !link || !isOfficialLink(link, config.siteUrl)) continue;
+      const feedTitle = normalizeForMatch(feed.title ?? "");
+      const itemTitle = item.title?.trim();
+      const descriptionTitle = item.contentSnippet?.trim();
+      const title = !itemTitle || normalizeForMatch(itemTitle) === feedTitle
+        ? descriptionTitle
+        : itemTitle;
+      const link = item.link ? canonicalOfficialLink(item.link.trim(), config.siteUrl) : null;
+      if (!title || !link) continue;
 
       const publishedValue = item.isoDate ?? item.pubDate;
       const publishedAt = getPublishedAt(publishedValue);
@@ -168,6 +178,7 @@ async function syncOneSource(config: RssSourceConfig, activeEntities: Array<{ id
       const snapshot = JSON.stringify({
         title,
         link,
+        feedItemTitle: itemTitle ?? null,
         guid: item.guid ?? null,
         pubDate: item.pubDate ?? null,
         categories: item.categories ?? [],

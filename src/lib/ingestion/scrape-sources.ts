@@ -5,7 +5,12 @@ export type ScrapeSourceKey =
   | "lok-sabha-press-releases"
   | "rajya-sabha-press-releases"
   | "dea-press-releases"
-  | "dfs-press-releases";
+  | "dfs-press-releases"
+  | "vice-president-news-updates"
+  | "mea-press-releases"
+  | "cag-press-releases"
+  | "election-commission-press-releases"
+  | "cabinet-secretariat-decisions";
 
 export type ScrapedEntityLink = {
   slug: string;
@@ -60,7 +65,16 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
     defaultDocumentType: "other",
     defaultLanguage: "en",
     pollIntervalMinutes: 2,
-    entityLinks: [institutionLink("prime-ministers-office", "Prime Minister's Office")],
+    entityLinks: [
+      institutionLink("prime-ministers-office", "Prime Minister's Office"),
+      {
+        slug: "prime-minister",
+        relation: "about",
+        evidence: "The official PM India news update concerns the work of the Prime Minister.",
+        confidence: 0.95,
+        mappingMethod: "official_source_subject_entity",
+      },
+    ],
   },
   {
     key: "president-press-releases",
@@ -82,6 +96,43 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
         mappingMethod: "official_source_entity",
       },
     ],
+  },
+  {
+    key: "vice-president-news-updates",
+    name: "Vice President of India — News Updates",
+    siteUrl: "https://vicepresidentofindia.nic.in",
+    listingUrl: "https://vicepresidentofindia.nic.in/news-updates/",
+    contentScope: "Current news and event updates on the official Vice President website; this section contains more than formal press releases.",
+    parser: "vice-president-news-updates",
+    defaultDocumentType: "other",
+    defaultLanguage: "en",
+    pollIntervalMinutes: 2,
+    entityLinks: [institutionLink("vice-president-of-india", "Vice President of India")],
+  },
+  {
+    key: "cabinet-secretariat-decisions",
+    name: "Cabinet Secretariat — Cabinet Decisions",
+    siteUrl: "https://www.cabsec.gov.in",
+    listingUrl: "https://www.cabsec.gov.in/more/pressreleases/",
+    contentScope: "Cabinet decisions from the PIB listing linked by the Cabinet Secretariat's official page.",
+    parser: "cabinet-secretariat-decisions",
+    defaultDocumentType: "other",
+    defaultLanguage: "en",
+    pollIntervalMinutes: 2,
+    allowedHosts: ["pib.gov.in"],
+    entityLinks: [institutionLink("cabinet-secretariat", "Cabinet Secretariat")],
+  },
+  {
+    key: "mea-press-releases",
+    name: "Ministry of External Affairs — Press Releases",
+    siteUrl: "https://www.mea.gov.in",
+    listingUrl: "https://www.mea.gov.in/FrontEnd/FetchPublicationListingData?publicationId=51&KeywordName=&SortBy=Date&page=1&PageSize=10&DateRange=&IsInternalMEA=false&PLngId=1",
+    contentScope: "English press releases returned by MEA's official publication-listing endpoint.",
+    parser: "mea-press-releases",
+    defaultDocumentType: "press_release",
+    defaultLanguage: "en",
+    pollIntervalMinutes: 2,
+    entityLinks: [institutionLink("ministry-of-external-affairs", "Ministry of External Affairs")],
   },
   {
     key: "lok-sabha-press-releases",
@@ -130,7 +181,7 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
     key: "dea-press-releases",
     name: "Department of Economic Affairs — Press Releases",
     siteUrl: "https://dea.gov.in",
-    listingUrl: "https://dea.gov.in/index.php/documents-press-release?page=0",
+    listingUrl: "https://dea.gov.in/documents-press-release?page=0",
     contentScope: "Latest press-release records on the Department of Economic Affairs listing.",
     parser: "dea-press-releases",
     defaultDocumentType: "press_release",
@@ -150,5 +201,30 @@ export const SCRAPE_SOURCES: ScrapeSourceConfig[] = [
     pollIntervalMinutes: 2,
     allowedHosts: ["pib.gov.in"],
     entityLinks: [institutionLink("department-of-financial-services", "Department of Financial Services")],
+  },
+  {
+    key: "election-commission-press-releases",
+    name: "Election Commission of India — Press Releases",
+    siteUrl: "https://www.eci.gov.in",
+    listingUrl: "https://www.eci.gov.in/964-press-releases",
+    contentScope: "Latest English press notes from ECI's public press-release API used by its official website.",
+    parser: "election-commission-press-releases",
+    defaultDocumentType: "press_release",
+    defaultLanguage: "en",
+    pollIntervalMinutes: 2,
+    entityLinks: [institutionLink("election-commission-of-india", "Election Commission of India")],
+  },
+  {
+    key: "cag-press-releases",
+    name: "Comptroller and Auditor General of India — Press Releases",
+    siteUrl: "https://www.cag.gov.in",
+    listingUrl: "https://www.cag.gov.in/en/press-release",
+    contentScope: "Current CAG press releases; the official listing links to the published PDF documents.",
+    parser: "cag-press-releases",
+    defaultDocumentType: "press_release",
+    defaultLanguage: "en",
+    pollIntervalMinutes: 2,
+    allowedHosts: ["d7i5wg8xwe4hf.cloudfront.net"],
+    entityLinks: [institutionLink("cag-of-india", "Comptroller and Auditor General of India")],
   },
 ];
