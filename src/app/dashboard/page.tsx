@@ -21,6 +21,7 @@ export default async function DashboardPage() {
       <header className="site-header app-header">
         <Link className="brand" href="/dashboard"><span className="brand-mark">CI</span><span>Civic India</span></Link>
         <div className="app-header-right">
+          <Link className="button button-quiet" href="/institutions">Institutions</Link>
           <span className="user-label">{current.user.email}</span>
           <SignOutButton />
         </div>

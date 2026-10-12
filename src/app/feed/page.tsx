@@ -28,6 +28,7 @@ type FeedSearchParams = {
   from?: string | string[];
   to?: string | string[];
   sort?: string | string[];
+  view?: string | string[];
 };
 
 function singleParam(value: string | string[] | undefined) {
@@ -69,6 +70,7 @@ export default async function FeedPage({
   const requestedFrom = singleParam(params.from);
   const requestedTo = singleParam(params.to);
   const sort = singleParam(params.sort) === "oldest" ? "oldest" : "newest";
+  const view = singleParam(params.view) === "list" ? "list" : "grid";
 
   const followedEntities = await db
     .select({ id: entities.id, name: entities.name })
@@ -121,6 +123,17 @@ export default async function FeedPage({
     .orderBy(sort === "oldest" ? asc(dateFields) : desc(dateFields))
     .limit(300);
 
+  function viewHref(nextView: "grid" | "list") {
+    const query = new URLSearchParams();
+    if (selectedEntityId) query.set("entity", selectedEntityId);
+    if (fromDate && requestedFrom) query.set("from", requestedFrom);
+    if (toDate && requestedTo) query.set("to", requestedTo);
+    query.set("sort", sort);
+    query.set("view", nextView);
+    return `/feed?${query.toString()}`;
+  }
+  const clearFiltersHref = view === "list" ? "/feed?view=list" : "/feed";
+
   const feedItems = new Map<string, FeedItem>();
   for (const row of rows) {
     let item = feedItems.get(row.id);
@@ -146,6 +159,7 @@ export default async function FeedPage({
       <header className="site-header app-header">
         <Link className="brand" href="/dashboard"><span className="brand-mark">CI</span><span>Civic India</span></Link>
         <div className="app-header-right">
+          <Link className="button button-quiet" href="/institutions">Institutions</Link>
           <Link className="button button-quiet" href="/entities">Manage follows</Link>
           <SignOutButton />
         </div>
@@ -156,6 +170,7 @@ export default async function FeedPage({
         <p className="app-lead">Official updates linked to the public institutions you follow.</p>
 
         <form className="feed-filters" method="get" action="/feed">
+          <input type="hidden" name="view" value={view} />
           <label className="feed-filter-field">
             <span>Entity</span>
             <select name="entity" defaultValue={selectedEntityId} disabled={followedEntities.length === 0}>
@@ -182,15 +197,25 @@ export default async function FeedPage({
           </label>
           <div className="feed-filter-actions">
             <button className="button button-dark" type="submit">Apply</button>
-            <Link className="button button-quiet" href="/feed">Clear</Link>
+            <Link className="button button-quiet" href={clearFiltersHref}>Clear</Link>
           </div>
         </form>
         {invalidDateRange && (
           <p className="feed-filter-error" role="alert">The start date must be on or before the end date.</p>
         )}
-        <p className="feed-count">
-          {feedItems.size} {feedItems.size === 1 ? "update" : "updates"} · {sort === "newest" ? "Newest" : "Oldest"} first
-        </p>
+        <div className="feed-toolbar">
+          <p className="feed-count">
+            {feedItems.size} {feedItems.size === 1 ? "update" : "updates"} · {sort === "newest" ? "Newest" : "Oldest"} first
+          </p>
+          <nav className="feed-view-toggle" aria-label="Feed layout">
+            <Link className={view === "grid" ? "is-active" : ""} href={viewHref("grid")} aria-current={view === "grid" ? "page" : undefined}>
+              Grid
+            </Link>
+            <Link className={view === "list" ? "is-active" : ""} href={viewHref("list")} aria-current={view === "list" ? "page" : undefined}>
+              List
+            </Link>
+          </nav>
+        </div>
 
         {feedItems.size === 0 ? (
           <section className="panel">
@@ -204,12 +229,12 @@ export default async function FeedPage({
               <>
                 <h2>No updates match these filters.</h2>
                 <p className="panel-subtitle">Try a wider date range or clear the filters to see more updates.</p>
-                <Link className="button button-dark" href="/feed">Clear filters</Link>
+                <Link className="button button-dark" href={clearFiltersHref}>Clear filters</Link>
               </>
             )}
           </section>
         ) : (
-          <section className="feed-grid" aria-label="Updates from followed entities">
+          <section className={view === "grid" ? "feed-grid" : "feed-list"} aria-label="Updates from followed entities">
             {[...feedItems.values()].map((item) => {
               const published = item.publishedAt;
               const timestamp = published ?? item.firstSeenAt;
