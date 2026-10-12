@@ -84,6 +84,7 @@ async function upsertSource(config: RssSourceConfig) {
       siteUrl: config.siteUrl,
       listingUrl: config.feedUrl,
       contentScope: config.contentScope,
+      pollIntervalMinutes: config.pollIntervalMinutes,
       enabled: true,
     })
     .onConflictDoUpdate({
@@ -93,6 +94,7 @@ async function upsertSource(config: RssSourceConfig) {
         siteUrl: config.siteUrl,
         listingUrl: config.feedUrl,
         contentScope: config.contentScope,
+        pollIntervalMinutes: config.pollIntervalMinutes,
         enabled: true,
         updatedAt: new Date(),
       },

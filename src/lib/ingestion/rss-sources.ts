@@ -8,6 +8,7 @@ export type RssSourceConfig = {
   issuerEntitySlug?: string;
   matchTitleToEntityNames?: boolean;
   defaultLanguage: string;
+  pollIntervalMinutes: number;
 };
 
 // Feed URLs were confirmed from the sites' own RSS links/declarations.
@@ -21,6 +22,7 @@ export const RSS_SOURCES: RssSourceConfig[] = [
     defaultDocumentType: "press_release",
     matchTitleToEntityNames: true,
     defaultLanguage: "en",
+    pollIntervalMinutes: 2,
   },
   {
     key: "mha-current-affairs",
@@ -31,5 +33,6 @@ export const RSS_SOURCES: RssSourceConfig[] = [
     defaultDocumentType: "other",
     issuerEntitySlug: "ministry-of-home-affairs",
     defaultLanguage: "en",
+    pollIntervalMinutes: 2,
   },
 ];

@@ -12,3 +12,9 @@ VALUES
   ('00000000-0000-4000-8000-000000000009', 'ministry-of-home-affairs', 'Ministry of Home Affairs', 'ministry', ARRAY['MHA']::text[], 'Union ministry with internal security and domestic affairs responsibilities.'),
   ('00000000-0000-4000-8000-000000000010', 'ministry-of-external-affairs', 'Ministry of External Affairs', 'ministry', ARRAY['MEA']::text[], 'Union ministry responsible for India''s external relations.')
 ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO entities (slug, name, type, aliases, description)
+VALUES
+  ('department-of-economic-affairs', 'Department of Economic Affairs', 'department', ARRAY['DEA']::text[], 'Department of the Ministry of Finance responsible for economic policy and financial markets.'),
+  ('department-of-financial-services', 'Department of Financial Services', 'department', ARRAY['DFS']::text[], 'Department of the Ministry of Finance responsible for financial services and financial inclusion.')
+ON CONFLICT (slug) DO NOTHING;
