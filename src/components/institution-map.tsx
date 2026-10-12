@@ -10,6 +10,7 @@ import {
 } from "@/data/institution-map";
 
 type View = "tree" | "graph";
+type GraphMode = "network" | "hierarchy";
 type TreeNodeProps = {
   node: Institution;
   childrenByParent: Map<string, Institution[]>;
@@ -85,6 +86,8 @@ function GraphNode({
   active,
   expanded,
   expandable,
+  layerActive,
+  opacity = 1,
   onClick,
 }: {
   x: number;
@@ -95,14 +98,18 @@ function GraphNode({
   active?: boolean;
   expanded?: boolean;
   expandable?: boolean;
+  layerActive?: boolean;
+  opacity?: number;
   onClick?: () => void;
 }) {
   const [lineOne, lineTwo] = twoLines(institution.name);
   let actionLabel = "Select and center on";
-  if (expandable) actionLabel = `${expanded ? "Collapse" : "Expand"} and center on`;
+  if (expandable && layerActive === false) actionLabel = "Focus this layer; click again to expand or collapse";
+  else if (expandable) actionLabel = `${expanded ? "Collapse" : "Expand"} and center on`;
   return (
     <g
       className={`institution-graph-node${active ? " is-active" : ""}${onClick ? " is-clickable" : ""}`}
+      style={{ opacity }}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
       aria-label={onClick ? `${actionLabel} ${institution.name}` : institution.name}
@@ -117,17 +124,66 @@ function GraphNode({
       <title>{institution.name}</title>
       {active && <circle className="institution-graph-node-halo" cx={x} cy={y} r={radius + 7} />}
       <circle className="institution-graph-node-dot" cx={x} cy={y} r={radius} style={{ fill: color }} />
+      <text className="institution-graph-kind" textAnchor="middle" x={x} y={y - radius - 8}>{institution.kind.toUpperCase()}</text>
       <text textAnchor="middle" x={x} y={y + radius + 18}>
         <tspan x={x}>{lineOne}</tspan>
         {lineTwo && <tspan x={x} dy="13">{lineTwo}</tspan>}
       </text>
-      <text className="institution-graph-kind" textAnchor="middle" x={x} y={y + radius + (lineTwo ? 28 : 17)}>{institution.kind.toUpperCase()}</text>
       {expandable && (
         <g className="institution-graph-expand-control" aria-hidden="true">
           <circle cx={x + radius * 0.72} cy={y - radius * 0.72} r="8" />
           <text x={x + radius * 0.72} y={y - radius * 0.72 + 3.5}>{expanded ? "−" : "+"}</text>
         </g>
       )}
+    </g>
+  );
+}
+
+function GraphCardNode({
+  x,
+  y,
+  institution,
+  active,
+  expanded,
+  expandable,
+  onClick,
+}: {
+  x: number;
+  y: number;
+  institution: Institution;
+  active?: boolean;
+  expanded?: boolean;
+  expandable?: boolean;
+  onClick?: () => void;
+}) {
+  const [lineOne, lineTwo] = twoLines(institution.name);
+  const width = 238;
+  const height = 76;
+  const left = x - width / 2;
+  const top = y - height / 2;
+  const actionLabel = expandable ? `${expanded ? "Collapse" : "Expand"} and center on` : "Select and center on";
+  return (
+    <g
+      className={`institution-graph-card-node${active ? " is-active" : ""}${onClick ? " is-clickable" : ""}`}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-label={onClick ? `${actionLabel} ${institution.name}` : institution.name}
+      onClick={onClick}
+      onKeyDown={onClick ? (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onClick();
+        }
+      } : undefined}
+    >
+      <title>{institution.name}</title>
+      <rect x={left} y={top} width={width} height={height} rx="10" />
+      <text x={left + 13} y={top + 23}>
+        <tspan x={left + 13}>{lineOne}</tspan>
+        {lineTwo && <tspan x={left + 13} dy="16">{lineTwo}</tspan>}
+      </text>
+      <text className="institution-graph-card-kind" x={left + 13} y={top + height - 10}>{institution.kind.toUpperCase()}</text>
+      {expandable && <text className="institution-graph-card-expand-mark" x={left + width - 19} y={top + 23}>{expanded ? "⌄" : "+"}</text>}
     </g>
   );
 }
@@ -161,21 +217,27 @@ function nodeColor(institution: Institution) {
 }
 
 function InstitutionGraph({
+  graphMode,
   focusId,
   selectedId,
+  activeLayerId,
   childrenByParent,
   expanded,
   onSelect,
   onToggle,
+  onGraphModeChange,
   onBackToTree,
   onReset,
 }: {
+  graphMode: GraphMode;
   focusId: string;
   selectedId: string;
+  activeLayerId: string;
   childrenByParent: Map<string, Institution[]>;
   expanded: Set<string>;
   onSelect: (id: string) => void;
   onToggle: (id: string) => void;
+  onGraphModeChange: (mode: GraphMode) => void;
   onBackToTree: () => void;
   onReset: () => void;
 }) {
@@ -185,6 +247,39 @@ function InstitutionGraph({
   const [isDragging, setIsDragging] = useState(false);
   const layout = useMemo(() => {
     const root = institutionMap.find((institution) => institution.parentId === null) ?? institutionMap[0];
+    if (graphMode === "hierarchy") {
+      const positions = new Map<string, GraphPosition>();
+      let leafY = 48;
+      let maxDepth = 0;
+      function place(node: Institution, depth: number): number {
+        maxDepth = Math.max(maxDepth, depth);
+        const children = expanded.has(node.id) ? childrenByParent.get(node.id) ?? [] : [];
+        let y: number;
+        if (children.length === 0) {
+          y = leafY;
+          leafY += 112;
+        } else {
+          const childYs = children.map((child) => place(child, depth + 1));
+          y = childYs.reduce((total, childY) => total + childY, 0) / childYs.length;
+        }
+        positions.set(node.id, {
+          node,
+          x: 56 + depth * 300 + 119,
+          y,
+          depth,
+          radius: 14,
+          color: nodeColor(node),
+        });
+        return y;
+      }
+      place(root, 0);
+      return {
+        positions,
+        width: Math.max(1100, 56 + maxDepth * 300 + 238 + 100),
+        height: Math.max(660, leafY + 32),
+      };
+    }
+
     const nodes: Array<{ node: Institution; depth: number; branchId: string }> = [];
     const nodeById = new Map<string, Institution>();
     function collect(node: Institution, depth: number, branchId: string) {
@@ -305,7 +400,7 @@ function InstitutionGraph({
       width: Math.max(1100, maxX - minX + graphMargin * 2),
       height: Math.max(760, maxY - minY + graphMargin * 2),
     };
-  }, [childrenByParent, expanded]);
+  }, [childrenByParent, expanded, graphMode]);
 
   const centerNode = useCallback((id: string) => {
     const position = layout.positions.get(id);
@@ -324,7 +419,7 @@ function InstitutionGraph({
   }, [centerNode, focusId]);
 
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
-    if ((event.target as Element).closest(".institution-graph-node")) return;
+    if ((event.target as Element).closest(".institution-graph-node, .institution-graph-card-node")) return;
     const viewport = event.currentTarget;
     viewport.setPointerCapture(event.pointerId);
     dragRef.current = {
@@ -364,6 +459,8 @@ function InstitutionGraph({
   });
   const visibleIds = new Set(positionById.keys());
   const crossEdges = institutionRelations.filter((relation) => visibleIds.has(relation.from) && visibleIds.has(relation.to));
+  const layerFor = (node: Institution) => node.parentId ?? node.id;
+  const isLayerActive = (node: Institution) => layerFor(node) === activeLayerId;
 
   return (
     <>
@@ -383,19 +480,44 @@ function InstitutionGraph({
           className="institution-graph-canvas"
           style={{ width: layout.width, height: layout.height, transform: `translate(${pan.x}px, ${pan.y}px)` }}
         >
-          <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-label="Expanded institution hierarchy graph">
+          <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-label={graphMode === "network" ? "Expanded institution network graph" : "Expanded institution hierarchy graph"}>
             <g className="institution-graph-edges" aria-hidden="true">
-              {structuralEdges.map(({ key, from, to }) => (
-                <line key={key} x1={from.x} y1={from.y} x2={to.x} y2={to.y} />
-              ))}
+              {structuralEdges.map(({ key, from, to }) => {
+                const x1 = graphMode === "hierarchy" ? from.x + 119 : from.x;
+                const x2 = graphMode === "hierarchy" ? to.x - 119 : to.x;
+                const opacity = graphMode === "hierarchy" || to.node.parentId === activeLayerId || to.node.id === selectedId ? 1 : 0.13;
+                return <line key={key} x1={x1} y1={from.y} x2={x2} y2={to.y} style={{ opacity }} />;
+              })}
               {crossEdges.map((relation) => {
                 const from = positionById.get(relation.from)!;
                 const to = positionById.get(relation.to)!;
-                return <line className="institution-graph-cross-edge" key={`relation-${relation.from}-${relation.to}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y} />;
+                const x1 = from.x;
+                const x2 = to.x;
+                const highlighted = isLayerActive(from.node) || isLayerActive(to.node) || from.node.id === selectedId || to.node.id === selectedId;
+                return <line className="institution-graph-cross-edge" key={`relation-${relation.from}-${relation.to}`} x1={x1} y1={from.y} x2={x2} y2={to.y} style={{ opacity: graphMode === "hierarchy" ? 1 : highlighted ? 0.62 : 0.09 }} />;
               })}
             </g>
             {visiblePositions.map(({ node, x, y, radius, color }) => {
               const expandable = (childrenByParent.get(node.id)?.length ?? 0) > 0;
+              if (graphMode === "hierarchy") {
+                return (
+                  <GraphCardNode
+                    key={node.id}
+                    x={x}
+                    y={y}
+                    institution={node}
+                    active={selectedId === node.id}
+                    expandable={expandable}
+                    expanded={expanded.has(node.id)}
+                    onClick={() => {
+                      onSelect(node.id);
+                      if (expandable) onToggle(node.id);
+                      centerNode(node.id);
+                    }}
+                  />
+                );
+              }
+              const layerActive = isLayerActive(node);
               return (
                 <GraphNode
                   key={node.id}
@@ -407,9 +529,11 @@ function InstitutionGraph({
                   active={selectedId === node.id}
                   expandable={expandable}
                   expanded={expanded.has(node.id)}
+                  layerActive={layerActive}
+                  opacity={layerActive || selectedId === node.id ? 1 : 0.2}
                   onClick={() => {
                     onSelect(node.id);
-                    if (expandable) onToggle(node.id);
+                    if (layerActive && expandable) onToggle(node.id);
                     centerNode(node.id);
                   }}
                 />
@@ -420,10 +544,13 @@ function InstitutionGraph({
       </div>
       <div className="institution-graph-floating-toolbar">
         <button className="button button-quiet" type="button" onClick={onBackToTree}>← Tree view</button>
-        <span className="institution-graph-mode-label">GRAPH VIEW</span>
+        <div className="institution-graph-style-switch" role="group" aria-label="Graph layout">
+          <button type="button" aria-pressed={graphMode === "hierarchy"} className={graphMode === "hierarchy" ? "is-active" : ""} onClick={() => onGraphModeChange("hierarchy")}>Hierarchy</button>
+          <button type="button" aria-pressed={graphMode === "network"} className={graphMode === "network" ? "is-active" : ""} onClick={() => onGraphModeChange("network")}>Network</button>
+        </div>
         <button className="button button-quiet" type="button" onClick={onReset}>Reset map</button>
       </div>
-      <p className="institution-graph-help">Click a node to expand or collapse its branch and center it. Drag the background to move around the network.</p>
+      <p className="institution-graph-help">{graphMode === "network" ? "Click a faint layer to focus it, then click its nodes to expand or collapse. Drag the background to move around the network." : "Click a node to expand or collapse its branch and center it. Drag the background to move around the map."}</p>
     </>
   );
 }
@@ -463,8 +590,10 @@ function InstitutionDetails({ institution, floating = false }: { institution: In
 
 export function InstitutionMap() {
   const [view, setView] = useState<View>("tree");
+  const [graphMode, setGraphMode] = useState<GraphMode>("network");
   const [selectedId, setSelectedId] = useState("republic-of-india");
   const [focusId, setFocusId] = useState("republic-of-india");
+  const [activeGraphLayer, setActiveGraphLayer] = useState("republic-of-india");
   const [expanded, setExpanded] = useState(() => new Set(["republic-of-india"]));
   const [graphExpanded, setGraphExpanded] = useState(() => new Set(["republic-of-india"]));
   const childrenByParent = useMemo(() => {
@@ -482,6 +611,7 @@ export function InstitutionMap() {
   function selectInstitution(id: string) {
     setSelectedId(id);
     setFocusId(id);
+    setActiveGraphLayer(institutionById.get(id)?.parentId ?? id);
     setGraphExpanded((current) => {
       const next = new Set(current);
       let parentId = institutionById.get(id)?.parentId ?? null;
@@ -495,6 +625,8 @@ export function InstitutionMap() {
   }
 
   function toggleGraphNode(id: string) {
+    const isCurrentlyExpanded = graphExpanded.has(id);
+    setActiveGraphLayer(isCurrentlyExpanded ? (institutionById.get(id)?.parentId ?? id) : id);
     setGraphExpanded((current) => {
       const next = new Set(current);
       if (!next.has(id)) {
@@ -516,6 +648,7 @@ export function InstitutionMap() {
   function resetGraph() {
     setSelectedId("republic-of-india");
     setFocusId("republic-of-india");
+    setActiveGraphLayer("republic-of-india");
     setGraphExpanded(new Set(["republic-of-india"]));
   }
 
@@ -559,12 +692,19 @@ export function InstitutionMap() {
       ) : (
         <div className="institution-graph-layout" role="region" aria-label="Full-screen institution graph">
           <InstitutionGraph
+            graphMode={graphMode}
             focusId={focusId}
             selectedId={selectedId}
+            activeLayerId={activeGraphLayer}
             childrenByParent={childrenByParent}
             expanded={graphExpanded}
-            onSelect={(id) => { setSelectedId(id); setFocusId(id); }}
+            onSelect={(id) => {
+              setSelectedId(id);
+              setFocusId(id);
+              setActiveGraphLayer(institutionById.get(id)?.parentId ?? id);
+            }}
             onToggle={toggleGraphNode}
+            onGraphModeChange={setGraphMode}
             onBackToTree={() => setView("tree")}
             onReset={resetGraph}
           />

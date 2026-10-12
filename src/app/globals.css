@@ -200,16 +200,26 @@ button, input { font: inherit; }
 .institution-graph-edges .institution-graph-cross-edge { stroke: #819a8a; stroke-width: 1.5; stroke-dasharray: 5 5; }
 .institution-graph-node .institution-graph-node-dot { stroke: #fff; stroke-width: 2.5; filter: drop-shadow(0 2px 3px #20382a28); }
 .institution-graph-node .institution-graph-node-halo { fill: #53745d18; stroke: #53745d; stroke-width: 1.5; }
+.institution-graph-node { transition: opacity .18s ease; }
 .institution-graph-node text { fill: #27362d; font-family: var(--font-geist-sans), Arial, sans-serif; font-size: 10px; font-weight: 650; paint-order: stroke; stroke: #f8f8f3; stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
-.institution-graph-node .institution-graph-kind { fill: #78847c; font-size: 7px; font-weight: 750; letter-spacing: .07em; }
+.institution-graph-node .institution-graph-kind { fill: #78847c; font-size: 7px; font-weight: 750; letter-spacing: .07em; stroke-width: 2px; }
 .institution-graph-expand-control circle { fill: #fff; stroke: #e3e8e0; stroke-width: 1; }
 .institution-graph-expand-control text { fill: #304f3c; font-family: Arial, sans-serif; font-size: 12px; font-weight: 700; text-anchor: middle; stroke: none; }
 .institution-graph-node.is-active .institution-graph-node-dot { stroke: #183e34; stroke-width: 3; }
 .institution-graph-node.is-clickable { cursor: pointer; outline: none; }
 .institution-graph-node.is-clickable:hover .institution-graph-node-dot, .institution-graph-node.is-clickable:focus .institution-graph-node-dot { stroke: #183e34; stroke-width: 3.5; }
+.institution-graph-card-node rect { fill: #fff; stroke: #dfe4db; stroke-width: 1; }
+.institution-graph-card-node text { fill: #27362d; font-family: var(--font-geist-sans), Arial, sans-serif; font-size: 12px; font-weight: 650; }
+.institution-graph-card-node .institution-graph-card-kind { fill: #859089; font-size: 8px; font-weight: 700; letter-spacing: .06em; }
+.institution-graph-card-node .institution-graph-card-expand-mark { fill: #52745e; font-size: 19px; font-weight: 500; }
+.institution-graph-card-node.is-active rect { fill: #edf2ea; stroke: #53745d; stroke-width: 1.6; }
+.institution-graph-card-node.is-clickable { cursor: pointer; outline: none; }
+.institution-graph-card-node.is-clickable:hover rect, .institution-graph-card-node.is-clickable:focus rect { stroke: #53745d; stroke-width: 2; }
 .institution-graph-floating-toolbar { position: absolute; z-index: 5; top: 16px; left: 16px; display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid #e2e5dc; border-radius: 10px; background: #fffefaed; box-shadow: 0 8px 28px #25362b14; }
 .institution-graph-floating-toolbar .button { min-height: 36px; padding: 0 11px; font-size: 10px; }
-.institution-graph-mode-label { padding: 0 5px; color: #7c887f; font-size: 9px; font-weight: 750; letter-spacing: .11em; }
+.institution-graph-style-switch { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid #e6e9e1; border-radius: 8px; background: #f2f3ee; }
+.institution-graph-style-switch button { min-height: 28px; padding: 0 9px; border: 0; border-radius: 6px; background: transparent; color: #6f7c72; font: inherit; font-size: 10px; font-weight: 650; cursor: pointer; }
+.institution-graph-style-switch button.is-active { background: #fff; color: #304e3a; box-shadow: 0 1px 4px #25362b14; }
 .institution-graph-help { position: absolute; z-index: 5; bottom: 15px; left: 18px; margin: 0; padding: 9px 12px; border: 1px solid #e2e5dc; border-radius: 8px; background: #fffefae8; color: #65736a; font-size: 10px; box-shadow: 0 4px 18px #25362b10; }
 .institution-detail-floating { position: absolute; z-index: 5; top: 78px; right: 16px; width: min(350px, calc(100vw - 32px)); max-height: calc(100vh - 94px); overflow: auto; box-shadow: 0 12px 40px #25362b1c; }
 .institution-sources { margin-top: 18px; }
@@ -273,7 +283,8 @@ button, input { font: inherit; }
   .institution-detail { padding: 20px; }
   .institution-graph-floating-toolbar { top: 9px; left: 9px; gap: 3px; padding: 5px; }
   .institution-graph-floating-toolbar .button { min-height: 34px; padding: 0 8px; font-size: 9px; }
-  .institution-graph-mode-label { display: none; }
+  .institution-graph-style-switch { gap: 1px; padding: 2px; }
+  .institution-graph-style-switch button { min-height: 28px; padding: 0 6px; font-size: 9px; }
   .institution-graph-help { top: 57px; bottom: auto; left: 10px; font-size: 9px; }
   .institution-detail-floating { top: auto; right: 10px; bottom: 10px; width: min(350px, calc(100vw - 20px)); max-height: 42vh; padding: 15px; }
   .institution-detail-floating h2 { font-size: 21px; }
