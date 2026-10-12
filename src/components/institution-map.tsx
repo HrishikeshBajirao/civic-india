@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type WheelEvent as ReactWheelEvent } from "react";
 import {
   institutionById,
   institutionMap,
@@ -67,31 +67,6 @@ function TreeNode({ node, childrenByParent, expanded, selectedId, onSelect, onTo
   );
 }
 
-type Neighbor = { node: Institution; label: string; side: "left" | "right" };
-
-function graphNeighbors(id: string, childrenByParent: Map<string, Institution[]>): Neighbor[] {
-  const focus = institutionById.get(id);
-  if (!focus) return [];
-  const neighbors = new Map<string, Neighbor>();
-  if (focus.parentId) {
-    const parent = institutionById.get(focus.parentId);
-    if (parent) neighbors.set(parent.id, { node: parent, label: "category contains", side: "left" });
-  }
-  for (const child of childrenByParent.get(id) ?? []) {
-    neighbors.set(child.id, { node: child, label: "grouped under", side: "right" });
-  }
-  for (const relation of institutionRelations) {
-    if (relation.from === id) {
-      const node = institutionById.get(relation.to);
-      if (node) neighbors.set(node.id, { node, label: relation.label, side: "right" });
-    } else if (relation.to === id) {
-      const node = institutionById.get(relation.from);
-      if (node) neighbors.set(node.id, { node, label: relation.reverseLabel ?? relation.label, side: "left" });
-    }
-  }
-  return [...neighbors.values()];
-}
-
 function twoLines(value: string): [string, string] {
   if (value.length <= 27) return [value, ""];
   const splitAt = value.lastIndexOf(" ", 27);
@@ -108,6 +83,8 @@ function GraphNode({
   height,
   institution,
   active,
+  expanded,
+  expandable,
   onClick,
 }: {
   x: number;
@@ -116,15 +93,19 @@ function GraphNode({
   height: number;
   institution: Institution;
   active?: boolean;
+  expanded?: boolean;
+  expandable?: boolean;
   onClick?: () => void;
 }) {
   const [lineOne, lineTwo] = twoLines(institution.name);
+  let actionLabel = "Select and center on";
+  if (expandable) actionLabel = expanded ? "Keep expanded and center on" : "Expand and center on";
   return (
     <g
       className={`institution-graph-node${active ? " is-active" : ""}${onClick ? " is-clickable" : ""}`}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
-      aria-label={onClick ? `Focus on ${institution.name}` : institution.name}
+      aria-label={onClick ? `${actionLabel} ${institution.name}` : institution.name}
       onClick={onClick}
       onKeyDown={onClick ? (event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -140,70 +121,196 @@ function GraphNode({
         {lineTwo && <tspan x={x + 13} dy="16">{lineTwo}</tspan>}
       </text>
       <text className="institution-graph-kind" x={x + 13} y={y + height - 10}>{institution.kind.toUpperCase()}</text>
+      {expandable && <text className="institution-graph-expand-mark" x={x + width - 19} y={y + 23}>{expanded ? "⌄" : "+"}</text>}
     </g>
   );
 }
 
-function InstitutionGraph({ focusId, onSelect }: { focusId: string; onSelect: (id: string) => void }) {
-  const focus = institutionById.get(focusId) ?? institutionMap[0];
-  const childrenByParent = useMemo(() => {
-    const map = new Map<string, Institution[]>();
-    for (const institution of institutionMap) {
-      if (!institution.parentId) continue;
-      const existing = map.get(institution.parentId) ?? [];
-      existing.push(institution);
-      map.set(institution.parentId, existing);
+type GraphPosition = { node: Institution; x: number; y: number; depth: number };
+type PanState = { x: number; y: number };
+type DragState = { pointerId: number; startX: number; startY: number; panX: number; panY: number };
+
+const graphNodeWidth = 238;
+const graphNodeHeight = 76;
+
+function InstitutionGraph({
+  focusId,
+  selectedId,
+  childrenByParent,
+  expanded,
+  onSelect,
+  onExpand,
+  onBackToTree,
+  onReset,
+}: {
+  focusId: string;
+  selectedId: string;
+  childrenByParent: Map<string, Institution[]>;
+  expanded: Set<string>;
+  onSelect: (id: string) => void;
+  onExpand: (id: string) => void;
+  onBackToTree: () => void;
+  onReset: () => void;
+}) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<DragState | null>(null);
+  const [pan, setPan] = useState<PanState>({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const layout = useMemo(() => {
+    const root = institutionMap.find((institution) => institution.parentId === null) ?? institutionMap[0];
+    const positions = new Map<string, GraphPosition>();
+    let leafY = 48;
+    let maxDepth = 0;
+
+    function place(node: Institution, depth: number): number {
+      maxDepth = Math.max(maxDepth, depth);
+      const children = expanded.has(node.id) ? childrenByParent.get(node.id) ?? [] : [];
+      let y: number;
+      if (children.length === 0) {
+        y = leafY;
+        leafY += 112;
+      } else {
+        const childYs = children.map((child) => place(child, depth + 1));
+        y = childYs.reduce((total, childY) => total + childY, 0) / childYs.length;
+      }
+      positions.set(node.id, { node, x: 56 + depth * 300, y, depth });
+      return y;
     }
-    return map;
-  }, []);
-  const neighbors = graphNeighbors(focus.id, childrenByParent);
-  const left = neighbors.filter((neighbor) => neighbor.side === "left");
-  const right = neighbors.filter((neighbor) => neighbor.side === "right");
-  const rowGap = 88;
-  const height = Math.max(360, Math.max(left.length, right.length) * rowGap + 100);
-  const centerY = height / 2;
-  const nodeY = (index: number, count: number) => centerY - ((count - 1) * rowGap) / 2 + index * rowGap;
+
+    place(root, 0);
+    return {
+      positions,
+      width: Math.max(1100, 56 + maxDepth * 300 + graphNodeWidth + 100),
+      height: Math.max(660, leafY + 32),
+    };
+  }, [childrenByParent, expanded]);
+
+  const centerNode = useCallback((id: string) => {
+    const position = layout.positions.get(id);
+    const viewport = viewportRef.current;
+    if (!position || !viewport) return;
+    const bounds = viewport.getBoundingClientRect();
+    setPan({
+      x: bounds.width / 2 - (position.x + graphNodeWidth / 2),
+      y: bounds.height / 2 - position.y,
+    });
+  }, [layout]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => centerNode(focusId));
+    return () => window.cancelAnimationFrame(frame);
+  }, [centerNode, focusId]);
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    if ((event.target as Element).closest(".institution-graph-node")) return;
+    const viewport = event.currentTarget;
+    viewport.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      panX: pan.x,
+      panY: pan.y,
+    };
+    setIsDragging(true);
+    event.preventDefault();
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setPan({ x: drag.panX + event.clientX - drag.startX, y: drag.panY + event.clientY - drag.startY });
+  }
+
+  function finishPointer(event: ReactPointerEvent<HTMLDivElement>) {
+    if (dragRef.current?.pointerId !== event.pointerId) return;
+    dragRef.current = null;
+    setIsDragging(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  function handleWheel(event: ReactWheelEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setPan((current) => ({ x: current.x - event.deltaX, y: current.y - event.deltaY }));
+  }
+
+  const visiblePositions = [...layout.positions.values()];
+  const positionById = layout.positions;
+  const structuralEdges = visiblePositions.flatMap(({ node }) => {
+    const parent = node.parentId ? positionById.get(node.parentId) : undefined;
+    return parent ? [{ key: `tree-${parent.node.id}-${node.id}`, from: parent, to: positionById.get(node.id)! }] : [];
+  });
+  const visibleIds = new Set(positionById.keys());
+  const crossEdges = institutionRelations.filter((relation) => visibleIds.has(relation.from) && visibleIds.has(relation.to));
 
   return (
-    <div className="institution-graph-scroll" role="region" aria-label={`Institution connections around ${focus.name}`} tabIndex={0}>
-      <svg className="institution-graph-canvas" viewBox={`0 0 1020 ${height}`} aria-label={`Graph centered on ${focus.name}`}>
-        <g className="institution-graph-edges" aria-hidden="true">
-          {left.map((neighbor, index) => {
-            const y = nodeY(index, left.length) + 31;
-            return <line key={`l-${neighbor.node.id}`} x1="290" y1={y} x2="410" y2={centerY} />;
-          })}
-          {right.map((neighbor, index) => {
-            const y = nodeY(index, right.length) + 31;
-            return <line key={`r-${neighbor.node.id}`} x1="680" y1={centerY} x2="730" y2={y} />;
-          })}
-        </g>
-        {left.map((neighbor, index) => (
-          <GraphNode key={neighbor.node.id} x={40} y={nodeY(index, left.length)} width={250} height={62} institution={neighbor.node} onClick={() => onSelect(neighbor.node.id)} />
-        ))}
-        <GraphNode x={410} y={centerY - 40} width={270} height={80} institution={focus} active />
-        {right.map((neighbor, index) => (
-          <GraphNode key={neighbor.node.id} x={730} y={nodeY(index, right.length)} width={250} height={62} institution={neighbor.node} onClick={() => onSelect(neighbor.node.id)} />
-        ))}
-      </svg>
-      {neighbors.length > 0 && (
-        <div className="institution-graph-relationships" aria-label="Relationship labels">
-          {neighbors.map((neighbor) => (
-            <button key={neighbor.node.id} type="button" onClick={() => onSelect(neighbor.node.id)}>
-              <span>{neighbor.label}</span><strong>{neighbor.node.name}</strong>
-            </button>
-          ))}
+    <>
+      <div
+        ref={viewportRef}
+        className={`institution-graph-viewport${isDragging ? " is-dragging" : ""}`}
+        role="region"
+        aria-label="Draggable institution graph"
+        tabIndex={0}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishPointer}
+        onPointerCancel={finishPointer}
+        onWheel={handleWheel}
+      >
+        <div
+          className="institution-graph-canvas"
+          style={{ width: layout.width, height: layout.height, transform: `translate(${pan.x}px, ${pan.y}px)` }}
+        >
+          <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} aria-label="Expanded institution hierarchy graph">
+            <g className="institution-graph-edges" aria-hidden="true">
+              {structuralEdges.map(({ key, from, to }) => (
+                <line key={key} x1={from.x + graphNodeWidth} y1={from.y} x2={to.x} y2={to.y} />
+              ))}
+              {crossEdges.map((relation) => {
+                const from = positionById.get(relation.from)!;
+                const to = positionById.get(relation.to)!;
+                return <line className="institution-graph-cross-edge" key={`relation-${relation.from}-${relation.to}`} x1={from.x + graphNodeWidth / 2} y1={from.y} x2={to.x + graphNodeWidth / 2} y2={to.y} />;
+              })}
+            </g>
+            {visiblePositions.map(({ node, x, y }) => {
+              const expandable = (childrenByParent.get(node.id)?.length ?? 0) > 0;
+              return (
+                <GraphNode
+                  key={node.id}
+                  x={x}
+                  y={y - graphNodeHeight / 2}
+                  width={graphNodeWidth}
+                  height={graphNodeHeight}
+                  institution={node}
+                  active={selectedId === node.id}
+                  expandable={expandable}
+                  expanded={expanded.has(node.id)}
+                  onClick={() => {
+                    onSelect(node.id);
+                    if (expandable) onExpand(node.id);
+                    centerNode(node.id);
+                  }}
+                />
+              );
+            })}
+          </svg>
         </div>
-      )}
-      {neighbors.length === 0 && <p className="institution-graph-empty">No mapped connections are available for this node yet.</p>}
-    </div>
+      </div>
+      <div className="institution-graph-floating-toolbar">
+        <button className="button button-quiet" type="button" onClick={onBackToTree}>← Tree view</button>
+        <span className="institution-graph-mode-label">GRAPH VIEW</span>
+        <button className="button button-quiet" type="button" onClick={onReset}>Reset map</button>
+      </div>
+      <p className="institution-graph-help">Click a node to expand it and center it. Drag the background to move around the map.</p>
+    </>
   );
 }
 
-function InstitutionDetails({ institution }: { institution: Institution }) {
+function InstitutionDetails({ institution, floating = false }: { institution: Institution; floating?: boolean }) {
   const parent = institution.parentId ? institutionById.get(institution.parentId) : undefined;
   const crossLinks = institutionRelations.filter((relation) => relation.from === institution.id || relation.to === institution.id);
   return (
-    <aside className="institution-detail panel" aria-live="polite">
+    <aside className={`institution-detail panel${floating ? " institution-detail-floating" : ""}`} aria-live="polite">
       <p className="eyebrow">INSTITUTION DETAILS</p>
       <h2>{institution.name}</h2>
       <span className="institution-kind-badge">{institution.kind}</span>
@@ -237,6 +344,7 @@ export function InstitutionMap() {
   const [selectedId, setSelectedId] = useState("republic-of-india");
   const [focusId, setFocusId] = useState("republic-of-india");
   const [expanded, setExpanded] = useState(() => new Set(["republic-of-india"]));
+  const [graphExpanded, setGraphExpanded] = useState(() => new Set(["republic-of-india"]));
   const childrenByParent = useMemo(() => {
     const map = new Map<string, Institution[]>();
     for (const institution of institutionMap) {
@@ -252,6 +360,26 @@ export function InstitutionMap() {
   function selectInstitution(id: string) {
     setSelectedId(id);
     setFocusId(id);
+    setGraphExpanded((current) => {
+      const next = new Set(current);
+      let parentId = institutionById.get(id)?.parentId ?? null;
+      while (parentId) {
+        next.add(parentId);
+        parentId = institutionById.get(parentId)?.parentId ?? null;
+      }
+      if ((childrenByParent.get(id)?.length ?? 0) > 0) next.add(id);
+      return next;
+    });
+  }
+
+  function expandGraphNode(id: string) {
+    setGraphExpanded((current) => new Set(current).add(id));
+  }
+
+  function resetGraph() {
+    setSelectedId("republic-of-india");
+    setFocusId("republic-of-india");
+    setGraphExpanded(new Set(["republic-of-india"]));
   }
 
   function toggleExpanded(id: string) {
@@ -292,16 +420,18 @@ export function InstitutionMap() {
           <InstitutionDetails institution={selected} />
         </div>
       ) : (
-        <div className="institution-graph-layout">
-          <section className="institution-graph-panel panel" aria-label="Institution relationship graph">
-            <div className="institution-graph-heading">
-              <div><p className="eyebrow">CONNECTED VIEW</p><h2>Explore from any institution</h2></div>
-              <button className="button button-quiet" type="button" onClick={() => selectInstitution("republic-of-india")}>Start at the Republic</button>
-            </div>
-            <p className="institution-view-hint">Select a connected node to move through the map. The relationship list names why each connection exists.</p>
-            <InstitutionGraph focusId={focusId} onSelect={selectInstitution} />
-          </section>
-          <InstitutionDetails institution={selected} />
+        <div className="institution-graph-layout" role="region" aria-label="Full-screen institution graph">
+          <InstitutionGraph
+            focusId={focusId}
+            selectedId={selectedId}
+            childrenByParent={childrenByParent}
+            expanded={graphExpanded}
+            onSelect={(id) => { setSelectedId(id); setFocusId(id); }}
+            onExpand={expandGraphNode}
+            onBackToTree={() => setView("tree")}
+            onReset={resetGraph}
+          />
+          <InstitutionDetails institution={selected} floating />
         </div>
       )}
 

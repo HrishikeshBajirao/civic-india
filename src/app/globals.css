@@ -147,7 +147,8 @@ button, input { font: inherit; }
 .auth-aside-top .brand { align-self: auto; }
 .auth-aside-top .button, .auth-mobile-nav .button { min-height: 36px; padding: 0 12px; font-size: 11px; }
 .auth-mobile-nav { display: none; }
-.institutions-content { max-width: 1220px; }
+.institutions-page { width: min(1800px, calc(100% - 40px)); }
+.institutions-content { max-width: none; }
 .institution-map-intro { display: flex; align-items: center; justify-content: space-between; gap: 26px; margin-top: 28px; }
 .institution-map-intro > div { max-width: 690px; }
 .institution-map-intro h2, .institution-graph-heading h2, .institution-sources h2 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-size: 23px; font-weight: 500; letter-spacing: -.03em; }
@@ -190,25 +191,25 @@ button, input { font: inherit; }
 .institution-relations-list h3 { margin: 0; font-size: 11px; }
 .institution-relations-list p { display: grid; gap: 4px; margin: 0; color: #78847c; font-size: 9px; line-height: 1.5; }
 .institution-relations-list strong { color: #3d4b41; font-size: 10px; }
-.institution-graph-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .38fr); align-items: start; gap: 16px; margin-top: 14px; }
-.institution-graph-panel { overflow: hidden; padding: 22px 18px; }
-.institution-graph-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 8px; }
-.institution-graph-heading .button { flex: 0 0 auto; min-height: 36px; padding: 0 11px; font-size: 10px; }
-.institution-graph-scroll { max-height: 700px; overflow: auto; border: 1px solid #eeeee8; border-radius: 8px; background: #fbfbf7; }
-.institution-graph-canvas { display: block; width: 100%; min-width: 840px; height: auto; }
-.institution-graph-edges line { stroke: #b8c5b9; stroke-width: 1.5; }
+.institution-graph-layout { position: fixed; z-index: 1000; inset: 0; overflow: hidden; background: var(--paper); }
+.institution-graph-viewport { position: absolute; inset: 0; overflow: hidden; overscroll-behavior: contain; touch-action: none; cursor: grab; background-color: #f8f8f3; background-image: radial-gradient(#d5dcd3 1px, transparent 1px); background-size: 24px 24px; }
+.institution-graph-viewport.is-dragging { cursor: grabbing; }
+.institution-graph-canvas { position: absolute; top: 0; left: 0; display: block; will-change: transform; user-select: none; }
+.institution-graph-canvas svg { display: block; overflow: visible; }
+.institution-graph-edges line { stroke: #aab9ac; stroke-width: 1.6; }
+.institution-graph-edges .institution-graph-cross-edge { stroke: #819a8a; stroke-width: 1.5; stroke-dasharray: 5 5; }
 .institution-graph-node rect { fill: #fff; stroke: #dfe4db; stroke-width: 1; }
 .institution-graph-node text { fill: #27362d; font-family: var(--font-geist-sans), Arial, sans-serif; font-size: 12px; font-weight: 650; }
 .institution-graph-node .institution-graph-kind { fill: #859089; font-size: 8px; font-weight: 700; letter-spacing: .06em; }
+.institution-graph-node .institution-graph-expand-mark { fill: #52745e; font-size: 19px; font-weight: 500; }
 .institution-graph-node.is-active rect { fill: #edf2ea; stroke: #53745d; stroke-width: 1.6; }
 .institution-graph-node.is-clickable { cursor: pointer; outline: none; }
 .institution-graph-node.is-clickable:hover rect, .institution-graph-node.is-clickable:focus rect { stroke: #53745d; stroke-width: 2; }
-.institution-graph-relationships { display: grid; grid-template-columns: repeat(auto-fit, minmax(195px, 1fr)); gap: 8px; margin-top: 12px; }
-.institution-graph-relationships button { display: grid; gap: 4px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: #78847c; text-align: left; cursor: pointer; }
-.institution-graph-relationships button:hover { border-color: #b6c7b7; background: #f7f9f5; }
-.institution-graph-relationships span { font-size: 9px; line-height: 1.5; }
-.institution-graph-relationships strong { color: #39483e; font-size: 10px; line-height: 1.4; }
-.institution-graph-empty { margin: 16px 0 0; color: #78847c; font-size: 11px; }
+.institution-graph-floating-toolbar { position: absolute; z-index: 5; top: 16px; left: 16px; display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid #e2e5dc; border-radius: 10px; background: #fffefaed; box-shadow: 0 8px 28px #25362b14; }
+.institution-graph-floating-toolbar .button { min-height: 36px; padding: 0 11px; font-size: 10px; }
+.institution-graph-mode-label { padding: 0 5px; color: #7c887f; font-size: 9px; font-weight: 750; letter-spacing: .11em; }
+.institution-graph-help { position: absolute; z-index: 5; bottom: 15px; left: 18px; margin: 0; padding: 9px 12px; border: 1px solid #e2e5dc; border-radius: 8px; background: #fffefae8; color: #65736a; font-size: 10px; box-shadow: 0 4px 18px #25362b10; }
+.institution-detail-floating { position: absolute; z-index: 5; top: 78px; right: 16px; width: min(350px, calc(100vw - 32px)); max-height: calc(100vh - 94px); overflow: auto; box-shadow: 0 12px 40px #25362b1c; }
 .institution-sources { margin-top: 18px; }
 .institution-sources h2 { font-size: 20px; }
 .institution-sources > p { max-width: 970px; margin: 9px 0 15px; color: #78847c; font-size: 10px; line-height: 1.7; }
@@ -227,12 +228,14 @@ button, input { font: inherit; }
   .auth-box h2 { font-size: 32px; }
   .feed-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .feed-filter-actions { grid-column: 1 / -1; }
-  .institution-map-layout, .institution-graph-layout { grid-template-columns: minmax(0, 1fr); }
+  .institution-map-layout { grid-template-columns: minmax(0, 1fr); }
   .institution-detail { position: static; }
+  .institution-detail-floating { position: absolute; }
 }
 
 @media (max-width: 560px) {
   .landing-page, .app-page { width: min(100% - 32px, 1120px); }
+  .institutions-page { width: calc(100% - 32px); }
   .site-header { min-height: 72px; flex-wrap: wrap; gap: 8px; padding: 9px 0; }
   .header-actions { flex: 1; justify-content: flex-end; flex-wrap: wrap; gap: 4px; }
   .header-actions .button { padding: 0 10px; font-size: 11px; }
@@ -262,10 +265,14 @@ button, input { font: inherit; }
   .institutions-content { padding-top: 42px; }
   .institution-map-intro { align-items: flex-start; flex-direction: column; padding: 19px; }
   .institution-map-intro h2 { font-size: 21px; }
-  .institution-graph-heading { align-items: flex-start; flex-direction: column; }
-  .institution-graph-panel { padding: 17px 12px; }
   .institution-tree-panel { padding: 14px 9px; }
   .institution-tree-select { align-items: flex-start; flex-direction: column; gap: 3px; }
   .institution-tree-select small { font-size: 7px; }
   .institution-detail { padding: 20px; }
+  .institution-graph-floating-toolbar { top: 9px; left: 9px; gap: 3px; padding: 5px; }
+  .institution-graph-floating-toolbar .button { min-height: 34px; padding: 0 8px; font-size: 9px; }
+  .institution-graph-mode-label { display: none; }
+  .institution-graph-help { top: 57px; bottom: auto; left: 10px; font-size: 9px; }
+  .institution-detail-floating { top: auto; right: 10px; bottom: 10px; width: min(350px, calc(100vw - 20px)); max-height: 42vh; padding: 15px; }
+  .institution-detail-floating h2 { font-size: 21px; }
 }
