@@ -94,21 +94,30 @@ jobs:
             process.exit(1);
           }
 
+          let url;
           try {
-            const url = new URL(value);
-            if (
-              url.protocol !== "https:" ||
-              ["localhost", "127.0.0.1", "::1"].includes(url.hostname)
-            ) {
-              throw new Error("not a public HTTPS URL");
-            }
-            console.log("BETTER_AUTH_URL: valid public HTTPS URL");
+            url = new URL(value);
           } catch {
             console.error(
-              "BETTER_AUTH_URL is invalid for Production; use the public HTTPS origin (not localhost).",
+              "BETTER_AUTH_URL is present but is not an absolute URL. Include https:// and remove any surrounding quotes.",
             );
             process.exit(1);
           }
+
+          const problems = [];
+          if (url.protocol !== "https:") {
+            problems.push(`protocol is ${url.protocol}; expected https:`);
+          }
+          if (["localhost", "127.0.0.1", "::1"].includes(url.hostname)) {
+            problems.push("hostname is localhost");
+          }
+
+          if (problems.length) {
+            console.error(`BETTER_AUTH_URL: ${problems.join("; ")}`);
+            process.exit(1);
+          }
+
+          console.log("BETTER_AUTH_URL: valid public HTTPS URL");
           NODE
 
       - name: Apply database migrations
