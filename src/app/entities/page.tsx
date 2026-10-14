@@ -2,14 +2,12 @@ import Link from "next/link";
 import { and, asc, eq } from "drizzle-orm";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { FollowButton } from "@/components/follow-button";
+import { EntityBrowser } from "@/components/entity-browser";
 import { SignOutButton } from "@/components/sign-out-button";
 import { db } from "@/db";
 import { entities, userFollows } from "@/db/schema";
 import { auth } from "@/lib/auth";
-
-const initials = (name: string) =>
-  name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+import { followPackages } from "@/data/follow-packages";
 
 export default async function EntitiesPage() {
   const current = await auth.api.getSession({ headers: await headers() });
@@ -22,6 +20,7 @@ export default async function EntitiesPage() {
       slug: entities.slug,
       type: entities.type,
       description: entities.description,
+      aliases: entities.aliases,
       followed: userFollows.entityId,
     })
     .from(entities)
@@ -46,27 +45,10 @@ export default async function EntitiesPage() {
         <p className="eyebrow">YOUR FOLLOW LIST</p>
         <h1>Choose who to follow.</h1>
         <p className="app-lead">Start with the institutions you care about. Updates will appear here as official sources are connected.</p>
-
-        <section className="panel">
-          <h2>Institutions and public offices</h2>
-          <p className="panel-subtitle">Follow or unfollow at any time. Each update will link to its original source.</p>
-          {entityRows.length === 0 ? (
-            <p className="empty-state">The starter entity list has not been added yet. It will appear here once the database is set up.</p>
-          ) : (
-            <div className="entity-list">
-              {entityRows.map((entity) => (
-                <article className="entity-row" key={entity.id}>
-                  <span className="entity-avatar" aria-hidden="true">{initials(entity.name)}</span>
-                  <div className="entity-copy">
-                    <strong>{entity.name}</strong>
-                    <span>{entity.description || entity.type[0].toUpperCase() + entity.type.slice(1)} · {entity.slug}</span>
-                  </div>
-                  <FollowButton entityId={entity.id} isFollowing={entity.followed !== null} />
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+        <EntityBrowser
+          entities={entityRows.map((entity) => ({ ...entity, followed: entity.followed !== null }))}
+          packages={followPackages}
+        />
       </section>
     </main>
   );

@@ -24,7 +24,7 @@ Copy `.env.example` to `.env.local` and set:
 
 Install dependencies with `npm install`, then start Next.js with `npm run dev`. Run `npm run ingest:all` once to poll every configured RSS feed and scraper. To keep polling locally, run `npm run ingest:watch` in a second terminal; it performs an initial sync and then polls every 2 minutes by default. Set `INGEST_INTERVAL_MINUTES` to change that local interval. The worker runs separately from the Next.js web process, so a cron service is not needed for local development. It stops when its terminal/process stops; a deployed always-on worker needs a process manager or scheduler.
 
-The source adapters expect PostgreSQL and the entity seed data. The seed file now includes the Department of Economic Affairs and Department of Financial Services entities; it is safe to rerun `src/db/seed-entities.sql` because existing slugs are left unchanged.
+The source adapters expect PostgreSQL and the entity seed data. The seed file includes the Department of Economic Affairs, Department of Financial Services, and Press Information Bureau entities; it is safe to rerun `src/db/seed-entities.sql` because existing slugs are left unchanged. After applying the migration and seed, run `npm run entities:sync-institutions` to upsert the 222 institutions in `src/data/institution-map.ts` and their aliases. Together, these provide 224 followable entities.
 
 The login and registration pages render without a database. Authentication, ingestion, the dashboard, feed, and follows require the configured PostgreSQL database. The application does not generate or apply migrations or seed data automatically.
 

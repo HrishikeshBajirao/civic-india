@@ -18,3 +18,8 @@ VALUES
   ('department-of-economic-affairs', 'Department of Economic Affairs', 'department', ARRAY['DEA']::text[], 'Department of the Ministry of Finance responsible for economic policy and financial markets.'),
   ('department-of-financial-services', 'Department of Financial Services', 'department', ARRAY['DFS']::text[], 'Department of the Ministry of Finance responsible for financial services and financial inclusion.')
 ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO entities (slug, name, type, aliases, description)
+VALUES
+  ('press-information-bureau', 'Press Information Bureau', 'institution', ARRAY['PIB']::text[], 'Government of India press release publisher.')
+ON CONFLICT (slug) DO NOTHING;
