@@ -86,9 +86,20 @@ jobs:
       - name: Log pulled Better Auth URL
         run: |
           node --env-file=.vercel/.env.production.local <<'NODE'
-          console.log(
-            `BETTER_AUTH_URL=${process.env.BETTER_AUTH_URL ?? "<missing>"}`,
-          );
+          const value = process.env.BETTER_AUTH_URL;
+          if (!value) {
+            console.log("BETTER_AUTH_URL is missing");
+            process.exit(0);
+          }
+
+          try {
+            const url = new URL(value);
+            console.log(`BETTER_AUTH_URL protocol: ${url.protocol}`);
+            console.log(`BETTER_AUTH_URL hostname: ${url.hostname}`);
+            console.log(`BETTER_AUTH_URL pathname: ${url.pathname}`);
+          } catch {
+            console.log(`BETTER_AUTH_URL is present but invalid (length: ${value.length})`);
+          }
           NODE
 
       - name: Validate pulled production auth URL
