@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "node --use-system-ca --import tsx src/scripts/sync-institution-entities.ts",
     "entities:sync-institutions": "node --use-system-ca --import tsx src/scripts/sync-institution-entities.ts",
