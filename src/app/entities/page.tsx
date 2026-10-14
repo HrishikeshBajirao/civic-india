@@ -26,7 +26,10 @@ export default async function EntitiesPage() {
     .from(entities)
     .leftJoin(
       userFollows,
-      and(eq(userFollows.entityId, entities.id), eq(userFollows.userId, current.user.id)),
+      and(
+        eq(userFollows.entityId, entities.id),
+        eq(userFollows.userId, current.user.id),
+      ),
     )
     .where(eq(entities.active, true))
     .orderBy(asc(entities.name));
@@ -34,19 +37,32 @@ export default async function EntitiesPage() {
   return (
     <main className="app-page">
       <header className="site-header app-header">
-        <Link className="brand" href="/dashboard"><span className="brand-mark">CI</span><span>Civic India</span></Link>
+        <Link className="brand" href="/dashboard">
+          <span className="brand-mark">CI</span>
+          <span>Civic India</span>
+        </Link>
         <div className="app-header-right">
-          <Link className="button button-quiet" href="/institutions">Institutions</Link>
-          <Link className="button button-quiet" href="/dashboard">Dashboard</Link>
+          <Link className="button button-quiet" href="/institutions">
+            Institutions
+          </Link>
+          <Link className="button button-quiet" href="/dashboard">
+            Dashboard
+          </Link>
           <SignOutButton />
         </div>
       </header>
       <section className="app-content">
         <p className="eyebrow">YOUR FOLLOW LIST</p>
         <h1>Choose who to follow.</h1>
-        <p className="app-lead">Start with the institutions you care about. Updates will appear here as official sources are connected.</p>
+        <p className="app-lead">
+          Start with the institutions you care about. Updates will appear here
+          as official sources are connected.
+        </p>
         <EntityBrowser
-          entities={entityRows.map((entity) => ({ ...entity, followed: entity.followed !== null }))}
+          entities={entityRows.map((entity) => ({
+            ...entity,
+            followed: entity.followed !== null,
+          }))}
           packages={followPackages}
         />
       </section>

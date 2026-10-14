@@ -11,14 +11,16 @@ async function main() {
   try {
     const results = await syncAllSources();
     console.log(JSON.stringify(results, null, 2));
-    if (results.some((result) => result.status === "failed")) process.exitCode = 1;
+    if (results.some((result) => result.status === "failed"))
+      process.exitCode = 1;
   } finally {
     await closeDatabase();
   }
 }
 
 void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unexpected ingestion error";
+  const message =
+    error instanceof Error ? error.message : "Unexpected ingestion error";
   console.error(`Official-source sync did not complete: ${message}`);
   process.exitCode = 1;
 });

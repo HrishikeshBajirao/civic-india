@@ -34,10 +34,19 @@ export function FollowButton({ entityId, isFollowing }: FollowButtonProps) {
 
   return (
     <div>
-      <button className={`button entity-action ${isFollowing ? "button-quiet" : "button-dark"}`} type="button" onClick={toggleFollow} disabled={pending}>
+      <button
+        className={`button entity-action ${isFollowing ? "button-quiet" : "button-dark"}`}
+        type="button"
+        onClick={toggleFollow}
+        disabled={pending}
+      >
         {pending ? "Saving…" : isFollowing ? "Following ✓" : "+ Follow"}
       </button>
-      {error && <p className="form-message" role="alert">{error}</p>}
+      {error && (
+        <p className="form-message" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

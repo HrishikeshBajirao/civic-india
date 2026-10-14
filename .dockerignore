@@ -1,0 +1,10 @@
+.git
+.next
+.vercel
+node_modules
+coverage
+.env*
+!.env.example
+npm-debug.log*
+*.tsbuildinfo
+CLAUDE.md
