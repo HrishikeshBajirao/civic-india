@@ -83,6 +83,14 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
+      - name: Log pulled Better Auth URL
+        run: |
+          node --env-file=.vercel/.env.production.local <<'NODE'
+          console.log(
+            `BETTER_AUTH_URL=${process.env.BETTER_AUTH_URL ?? "<missing>"}`,
+          );
+          NODE
+
       - name: Validate pulled production auth URL
         run: |
           node --env-file=.vercel/.env.production.local <<'NODE'
