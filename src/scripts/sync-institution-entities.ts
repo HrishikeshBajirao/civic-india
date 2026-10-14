@@ -5,28 +5,74 @@ loadEnvConfig(process.cwd());
 
 const aliasesByInstitutionId: Record<string, string[]> = {
   "republic-of-india": ["India", "Bharat", "Union of India"],
-  "union-government": ["Government of India", "Union Government", "Central Government"],
+  "union-government": [
+    "Government of India",
+    "Union Government",
+    "Central Government",
+  ],
   "president-of-india": ["President", "Rashtrapati", "राष्ट्रपति"],
-  "vice-president-of-india": ["Vice President", "Vice-President", "VP", "उपराष्ट्रपति"],
-  "prime-minister-of-india": ["Prime Minister", "PM", "Pradhan Mantri", "प्रधानमंत्री"],
-  "prime-ministers-office": ["PMO", "Prime Minister Office", "प्रधानमंत्री कार्यालय"],
-  "presidents-secretariat": ["President's Office", "Rashtrapati Secretariat", "राष्ट्रपति सचिवालय"],
+  "vice-president-of-india": [
+    "Vice President",
+    "Vice-President",
+    "VP",
+    "उपराष्ट्रपति",
+  ],
+  "prime-minister-of-india": [
+    "Prime Minister",
+    "PM",
+    "Pradhan Mantri",
+    "प्रधानमंत्री",
+  ],
+  "prime-ministers-office": [
+    "PMO",
+    "Prime Minister Office",
+    "प्रधानमंत्री कार्यालय",
+  ],
+  "presidents-secretariat": [
+    "President's Office",
+    "Rashtrapati Secretariat",
+    "राष्ट्रपति सचिवालय",
+  ],
   "cabinet-secretariat": ["Cabinet Secretariat of India", "CabSec"],
-  "national-security-council-secretariat": ["NSCS", "National Security Council Secretariat of India"],
+  "national-security-council-secretariat": [
+    "NSCS",
+    "National Security Council Secretariat of India",
+  ],
   "department-of-atomic-energy": ["DAE"],
   "department-of-space": ["DoS", "Indian Space Department"],
   "niti-aayog": ["NITI", "National Institution for Transforming India"],
   "union-parliament": ["Parliament", "Sansad", "Indian Parliament"],
   "lok-sabha": ["House of the People", "Lok Sabha Secretariat", "Lower House"],
-  "rajya-sabha": ["Council of States", "Rajya Sabha Secretariat", "Upper House"],
+  "rajya-sabha": [
+    "Council of States",
+    "Rajya Sabha Secretariat",
+    "Upper House",
+  ],
   "ministry-home-affairs": ["MHA", "Home Ministry", "Ministry of Home Affairs"],
-  "ministry-external-affairs": ["MEA", "External Affairs Ministry", "Ministry of External Affairs"],
+  "ministry-external-affairs": [
+    "MEA",
+    "External Affairs Ministry",
+    "Ministry of External Affairs",
+  ],
   "ministry-finance-department-economic-affairs": ["DEA"],
   "ministry-finance-department-financial-services": ["DFS"],
-  "supreme-court-of-india": ["Supreme Court", "SCI", "Apex Court", "भारत का सर्वोच्च न्यायालय"],
-  "election-commission-of-india": ["ECI", "Election Commission", "भारत निर्वाचन आयोग"],
+  "supreme-court-of-india": [
+    "Supreme Court",
+    "SCI",
+    "Apex Court",
+    "भारत का सर्वोच्च न्यायालय",
+  ],
+  "election-commission-of-india": [
+    "ECI",
+    "Election Commission",
+    "भारत निर्वाचन आयोग",
+  ],
   upsc: ["Union Public Service Commission", "संघ लोक सेवा आयोग"],
-  "cag-of-india": ["CAG", "Comptroller and Auditor General", "नियंत्रक एवं महालेखा परीक्षक"],
+  "cag-of-india": [
+    "CAG",
+    "Comptroller and Auditor General",
+    "नियंत्रक एवं महालेखा परीक्षक",
+  ],
   "finance-commission": ["Finance Commission of India"],
   "attorney-general-of-india": ["Attorney General", "AGI"],
   "national-commission-for-scheduled-castes": ["NCSC"],
@@ -46,12 +92,18 @@ const entitySlugByInstitutionId: Record<string, string> = {
   "union-parliament": "parliament-of-india",
   "ministry-home-affairs": "ministry-of-home-affairs",
   "ministry-external-affairs": "ministry-of-external-affairs",
-  "ministry-finance-department-economic-affairs": "department-of-economic-affairs",
-  "ministry-finance-department-financial-services": "department-of-financial-services",
+  "ministry-finance-department-economic-affairs":
+    "department-of-economic-affairs",
+  "ministry-finance-department-financial-services":
+    "department-of-financial-services",
 };
 
 function slug(value: string) {
-  return value.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 }
 
 function deriveAliases(id: string, name: string, kind: string) {
@@ -77,39 +129,79 @@ function deriveAliases(id: string, name: string, kind: string) {
   return [...aliases].filter((alias) => alias.trim().length > 2);
 }
 
-function mapEntityType(kind: string): "office" | "institution" | "ministry" | "department" | "court" {
-  if (kind === "office" || kind === "ministry" || kind === "department" || kind === "court") return kind;
+function mapEntityType(
+  kind: string,
+): "office" | "institution" | "ministry" | "department" | "court" {
+  if (
+    kind === "office" ||
+    kind === "ministry" ||
+    kind === "department" ||
+    kind === "court"
+  )
+    return kind;
   return "institution";
 }
 
 async function main() {
-  const [{ db, closeDatabase }, { entities }, { institutionMap }] = await Promise.all([
-    import("@/db"),
-    import("@/db/schema"),
-    import("@/data/institution-map"),
-  ]);
+  const [{ db, closeDatabase }, { entities }, { institutionMap }] =
+    await Promise.all([
+      import("@/db"),
+      import("@/db/schema"),
+      import("@/data/institution-map"),
+    ]);
 
   try {
-    const rows = institutionMap.map((institution) => ({
+    const mapRows = institutionMap.map((institution) => ({
       slug: entitySlugByInstitutionId[institution.id] ?? slug(institution.id),
       name: institution.name,
       type: mapEntityType(institution.kind),
-      aliases: deriveAliases(institution.id, institution.name, institution.kind),
+      aliases: deriveAliases(
+        institution.id,
+        institution.name,
+        institution.kind,
+      ),
       description: institution.description,
       active: true,
     }));
+    const supplementalRows = [
+      {
+        slug: "presidents-secretariat",
+        name: "President's Secretariat",
+        type: "office" as const,
+        aliases: aliasesByInstitutionId["presidents-secretariat"],
+        description: "The office supporting the President of India.",
+        active: true,
+      },
+      {
+        slug: "press-information-bureau",
+        name: "Press Information Bureau",
+        type: "institution" as const,
+        aliases: ["PIB"],
+        description: "Government of India press release publisher.",
+        active: true,
+      },
+    ];
+    const rows = [...mapRows, ...supplementalRows];
     const slugCounts = new Map<string, number>();
-    for (const row of rows) slugCounts.set(row.slug, (slugCounts.get(row.slug) ?? 0) + 1);
-    const collisions = [...slugCounts].filter(([, count]) => count > 1).map(([entitySlug]) => entitySlug);
-    if (collisions.length) throw new Error(`Institution slug collision: ${collisions.join(", ")}`);
+    for (const row of rows)
+      slugCounts.set(row.slug, (slugCounts.get(row.slug) ?? 0) + 1);
+    const collisions = [...slugCounts]
+      .filter(([, count]) => count > 1)
+      .map(([entitySlug]) => entitySlug);
+    if (collisions.length)
+      throw new Error(`Institution slug collision: ${collisions.join(", ")}`);
 
     const existing = await db
       .select({ slug: entities.slug, aliases: entities.aliases })
       .from(entities);
-    const existingBySlug = new Map(existing.map((entity) => [entity.slug, entity.aliases]));
+    const existingBySlug = new Map(
+      existing.map((entity) => [entity.slug, entity.aliases]),
+    );
     const mergedRows = rows.map((row) => ({
       ...row,
-      aliases: [...new Set([...(existingBySlug.get(row.slug) ?? []), ...row.aliases])],
+      aliases: [
+        ...new Set([...(existingBySlug.get(row.slug) ?? []), ...row.aliases]),
+      ],
     }));
 
     const saved = await db
@@ -128,7 +220,9 @@ async function main() {
       })
       .returning({ slug: entities.slug });
 
-    console.log(`Synchronized ${saved.length} of ${rows.length} institution entities.`);
+    console.log(
+      `Synchronized ${saved.length} of ${rows.length} entities (${mapRows.length} institution-map nodes and ${supplementalRows.length} supplemental entities).`,
+    );
     console.log(`Existing database entities before sync: ${existing.length}.`);
   } finally {
     await closeDatabase();
@@ -136,7 +230,10 @@ async function main() {
 }
 
 void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unexpected institution entity sync error";
+  const message =
+    error instanceof Error
+      ? error.message
+      : "Unexpected institution entity sync error";
   console.error(`Institution entities were not synchronized: ${message}`);
   process.exitCode = 1;
 });

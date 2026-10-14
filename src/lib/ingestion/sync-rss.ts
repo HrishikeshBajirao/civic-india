@@ -62,16 +62,22 @@ function getLanguage(title: string, fallback: string) {
 function getPublishedAt(value?: string) {
   if (!value) return null;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1990 ? null : parsed;
+  return Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1990
+    ? null
+    : parsed;
 }
 
 function canonicalOfficialLink(link: string, siteUrl: string) {
   try {
     const parsed = new URL(link);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:")
+      return null;
     const linkHost = parsed.hostname.toLowerCase().replace(/^www\./, "");
-    const baseHost = new URL(siteUrl).hostname.toLowerCase().replace(/^www\./, "");
-    if (linkHost !== baseHost && !linkHost.endsWith(`.${baseHost}`)) return null;
+    const baseHost = new URL(siteUrl).hostname
+      .toLowerCase()
+      .replace(/^www\./, "");
+    if (linkHost !== baseHost && !linkHost.endsWith(`.${baseHost}`))
+      return null;
     if (parsed.protocol === "http:") parsed.protocol = "https:";
     parsed.hash = "";
     return parsed.toString();
@@ -114,7 +120,12 @@ async function getEntityMatches(
   config: RssSourceConfig,
   title: string,
   issuerEntityId: string | null,
-  activeEntities: Array<{ id: string; slug: string; name: string; aliases: string[] }>,
+  activeEntities: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    aliases: string[];
+  }>,
 ): Promise<EntityMatch[]> {
   const matches = new Map<string, EntityMatch>();
 
@@ -130,8 +141,14 @@ async function getEntityMatches(
 
   if (config.matchTitleToEntityNames) {
     for (const entity of activeEntities) {
-      const phrases = [entity.name, ...entity.aliases, ...(localizedEntityNames[entity.slug] ?? [])];
-      const matchedPhrase = phrases.find((phrase) => mentionsPhrase(title, phrase));
+      const phrases = [
+        entity.name,
+        ...entity.aliases,
+        ...(localizedEntityNames[entity.slug] ?? []),
+      ];
+      const matchedPhrase = phrases.find((phrase) =>
+        mentionsPhrase(title, phrase),
+      );
       if (matchedPhrase && !matches.has(entity.id)) {
         matches.set(entity.id, {
           entityId: entity.id,
@@ -147,9 +164,20 @@ async function getEntityMatches(
   return [...matches.values()];
 }
 
-async function syncOneSource(config: RssSourceConfig, activeEntities: Array<{ id: string; slug: string; name: string; aliases: string[] }>) {
+async function syncOneSource(
+  config: RssSourceConfig,
+  activeEntities: Array<{
+    id: string;
+    slug: string;
+    name: string;
+    aliases: string[];
+  }>,
+) {
   const sourceId = await upsertSource(config);
-  const [run] = await db.insert(ingestionRuns).values({ sourceId }).returning({ id: ingestionRuns.id });
+  const [run] = await db
+    .insert(ingestionRuns)
+    .values({ sourceId })
+    .returning({ id: ingestionRuns.id });
   if (!run) throw new Error(`Could not start ingestion run for ${config.key}`);
 
   let itemsRead = 0;
@@ -166,10 +194,13 @@ async function syncOneSource(config: RssSourceConfig, activeEntities: Array<{ id
       const feedTitle = normalizeForMatch(feed.title ?? "");
       const itemTitle = item.title?.trim();
       const descriptionTitle = item.contentSnippet?.trim();
-      const title = !itemTitle || normalizeForMatch(itemTitle) === feedTitle
-        ? descriptionTitle
-        : itemTitle;
-      const link = item.link ? canonicalOfficialLink(item.link.trim(), config.siteUrl) : null;
+      const title =
+        !itemTitle || normalizeForMatch(itemTitle) === feedTitle
+          ? descriptionTitle
+          : itemTitle;
+      const link = item.link
+        ? canonicalOfficialLink(item.link.trim(), config.siteUrl)
+        : null;
       if (!title || !link) continue;
 
       const publishedValue = item.isoDate ?? item.pubDate;
@@ -186,18 +217,29 @@ async function syncOneSource(config: RssSourceConfig, activeEntities: Array<{ id
       });
       const itemHash = createHash("sha256").update(snapshot).digest("hex");
 
-      const docType =
-        (item.categories ?? []).some((category) => /press\s*releases?|प्रेस विज्ञप्ति/i.test(category))
-          ? "press_release"
-          : config.defaultDocumentType;
+      const docType = (item.categories ?? []).some((category) =>
+        /press\s*releases?|प्रेस विज्ञप्ति/i.test(category),
+      )
+        ? "press_release"
+        : config.defaultDocumentType;
 
-      const entityMatches = await getEntityMatches(config, title, issuer?.id ?? null, activeEntities);
+      const entityMatches = await getEntityMatches(
+        config,
+        title,
+        issuer?.id ?? null,
+        activeEntities,
+      );
 
       const created = await db.transaction(async (tx) => {
         const existing = await tx
           .select({ id: documentSources.id })
           .from(documentSources)
-          .where(and(eq(documentSources.sourceId, sourceId), eq(documentSources.sourceUrl, link)))
+          .where(
+            and(
+              eq(documentSources.sourceId, sourceId),
+              eq(documentSources.sourceUrl, link),
+            ),
+          )
           .limit(1);
         if (existing.length) return false;
 
@@ -213,7 +255,8 @@ async function syncOneSource(config: RssSourceConfig, activeEntities: Array<{ id
             contentHash: itemHash,
           })
           .returning({ id: documents.id });
-        if (!document) throw new Error(`Could not save RSS item from ${config.key}`);
+        if (!document)
+          throw new Error(`Could not save RSS item from ${config.key}`);
 
         const observation = await tx
           .insert(documentSources)
@@ -236,9 +279,15 @@ async function syncOneSource(config: RssSourceConfig, activeEntities: Array<{ id
         }
 
         if (entityMatches.length) {
-          await tx.insert(documentEntities).values(
-            entityMatches.map((match) => ({ documentId: document.id, ...match })),
-          ).onConflictDoNothing();
+          await tx
+            .insert(documentEntities)
+            .values(
+              entityMatches.map((match) => ({
+                documentId: document.id,
+                ...match,
+              })),
+            )
+            .onConflictDoNothing();
         }
         return true;
       });
@@ -252,23 +301,55 @@ async function syncOneSource(config: RssSourceConfig, activeEntities: Array<{ id
       .where(eq(sources.id, sourceId));
     await db
       .update(ingestionRuns)
-      .set({ status: "succeeded", finishedAt: new Date(), pagesRead: 1, itemsRead, recordsCreated })
+      .set({
+        status: "succeeded",
+        finishedAt: new Date(),
+        pagesRead: 1,
+        itemsRead,
+        recordsCreated,
+      })
       .where(eq(ingestionRuns.id, run.id));
 
-    return { sourceKey: config.key, itemsRead, recordsCreated, status: "succeeded" as const };
+    return {
+      sourceKey: config.key,
+      itemsRead,
+      recordsCreated,
+      status: "succeeded" as const,
+    };
   } catch (error) {
-    const errorSummary = error instanceof Error ? error.message.slice(0, 1_000) : "Unknown RSS ingestion error";
+    const errorSummary =
+      error instanceof Error
+        ? error.message.slice(0, 1_000)
+        : "Unknown RSS ingestion error";
     await db
       .update(ingestionRuns)
-      .set({ status: "failed", finishedAt: new Date(), pagesRead: 1, itemsRead, recordsCreated, errorSummary })
+      .set({
+        status: "failed",
+        finishedAt: new Date(),
+        pagesRead: 1,
+        itemsRead,
+        recordsCreated,
+        errorSummary,
+      })
       .where(eq(ingestionRuns.id, run.id));
-    return { sourceKey: config.key, itemsRead, recordsCreated, status: "failed" as const, error: errorSummary };
+    return {
+      sourceKey: config.key,
+      itemsRead,
+      recordsCreated,
+      status: "failed" as const,
+      error: errorSummary,
+    };
   }
 }
 
 export async function syncRssFeeds() {
   const activeEntities = await db
-    .select({ id: entities.id, slug: entities.slug, name: entities.name, aliases: entities.aliases })
+    .select({
+      id: entities.id,
+      slug: entities.slug,
+      name: entities.name,
+      aliases: entities.aliases,
+    })
     .from(entities)
     .where(eq(entities.active, true));
 

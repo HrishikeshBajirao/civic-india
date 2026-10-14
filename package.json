@@ -7,6 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "node --use-system-ca --import tsx src/scripts/sync-institution-entities.ts",
     "entities:sync-institutions": "node --use-system-ca --import tsx src/scripts/sync-institution-entities.ts",
     "ingest:rss": "node --use-system-ca --import tsx src/scripts/sync-rss.ts",
     "ingest:all": "node --use-system-ca --import tsx src/scripts/sync-all.ts",
@@ -33,6 +37,7 @@
     "drizzle-kit": "^0.31.11",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
+    "prettier": "3.9.10",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

@@ -19,9 +19,14 @@ export default async function DashboardPage() {
   return (
     <main className="app-page">
       <header className="site-header app-header">
-        <Link className="brand" href="/dashboard"><span className="brand-mark">CI</span><span>Civic India</span></Link>
+        <Link className="brand" href="/dashboard">
+          <span className="brand-mark">CI</span>
+          <span>Civic India</span>
+        </Link>
         <div className="app-header-right">
-          <Link className="button button-quiet" href="/institutions">Institutions</Link>
+          <Link className="button button-quiet" href="/institutions">
+            Institutions
+          </Link>
           <span className="user-label">{current.user.email}</span>
           <SignOutButton />
         </div>
@@ -29,21 +34,37 @@ export default async function DashboardPage() {
       <section className="app-content">
         <p className="eyebrow">YOUR CIVIC INDIA</p>
         <h1>Welcome, {current.user.name.split(" ")[0]}.</h1>
-        <p className="app-lead">Your account is ready. Choose the public institutions you want to keep up with.</p>
+        <p className="app-lead">
+          Your account is ready. Choose the public institutions you want to keep
+          up with.
+        </p>
 
         <div className="dashboard-stats">
-          <div className="stat-card"><span>INSTITUTIONS FOLLOWED</span><strong>{follows.length}</strong></div>
-          <div className="stat-card"><span>YOUR UPDATES</span><strong>Live feed</strong></div>
+          <div className="stat-card">
+            <span>INSTITUTIONS FOLLOWED</span>
+            <strong>{follows.length}</strong>
+          </div>
+          <div className="stat-card">
+            <span>YOUR UPDATES</span>
+            <strong>Live feed</strong>
+          </div>
         </div>
 
         <div className="dashboard-actions">
-          <Link className="button button-dark" href="/feed">View my feed <span aria-hidden="true">→</span></Link>
-          <Link className="text-link" href="/entities">Manage follows</Link>
+          <Link className="button button-dark" href="/feed">
+            View my feed <span aria-hidden="true">→</span>
+          </Link>
+          <Link className="text-link" href="/entities">
+            Manage follows
+          </Link>
         </div>
 
         <section className="panel">
           <h2>Updates from the institutions you follow.</h2>
-          <p className="panel-subtitle">The feed shows collected official updates when their source can be linked to an entity you follow.</p>
+          <p className="panel-subtitle">
+            The feed shows collected official updates when their source can be
+            linked to an entity you follow.
+          </p>
         </section>
       </section>
     </main>

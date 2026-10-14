@@ -17,23 +17,32 @@ async function main() {
   let currentRun: Promise<void> | null = null;
   const runCycle = () => {
     if (currentRun) {
-      console.warn("Previous ingestion cycle is still running; skipping this tick.");
+      console.warn(
+        "Previous ingestion cycle is still running; skipping this tick.",
+      );
       return currentRun;
     }
 
     currentRun = (async () => {
-      console.log(`Starting official-source sync at ${new Date().toISOString()}`);
+      console.log(
+        `Starting official-source sync at ${new Date().toISOString()}`,
+      );
       const results = await syncAllSources();
       console.log(JSON.stringify(results, null, 2));
       if (results.some((result) => result.status === "failed")) {
-        console.warn("At least one source failed; other source results are retained above.");
+        console.warn(
+          "At least one source failed; other source results are retained above.",
+        );
       }
-    })().catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : "Unexpected ingestion error";
-      console.error(`Ingestion cycle failed: ${message}`);
-    }).finally(() => {
-      currentRun = null;
-    });
+    })()
+      .catch((error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : "Unexpected ingestion error";
+        console.error(`Ingestion cycle failed: ${message}`);
+      })
+      .finally(() => {
+        currentRun = null;
+      });
 
     return currentRun;
   };
@@ -46,7 +55,9 @@ async function main() {
   process.once("SIGINT", onSignal);
   process.once("SIGTERM", onSignal);
 
-  console.log(`Local ingestion worker polling every ${requestedInterval} minute(s).`);
+  console.log(
+    `Local ingestion worker polling every ${requestedInterval} minute(s).`,
+  );
   await runCycle();
   const timer = setInterval(() => void runCycle(), intervalMs);
   await stopped;
@@ -59,7 +70,8 @@ async function main() {
 }
 
 void main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unexpected worker error";
+  const message =
+    error instanceof Error ? error.message : "Unexpected worker error";
   console.error(`Local ingestion worker did not start: ${message}`);
   process.exitCode = 1;
 });

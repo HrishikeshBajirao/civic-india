@@ -1,0 +1,36 @@
+name: Ingest official updates
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: civic-india-ingestion
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    name: Poll official sources
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v6
+
+      - name: Use Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ingest official updates
+        run: npm run ingest:all
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

@@ -16,7 +16,12 @@ export function SignOutButton() {
   }
 
   return (
-    <button className="button button-quiet" type="button" onClick={signOut} disabled={pending}>
+    <button
+      className="button button-quiet"
+      type="button"
+      onClick={signOut}
+      disabled={pending}
+    >
       {pending ? "Signing out…" : "Log out"}
     </button>
   );

@@ -10,7 +10,10 @@ import {
   ingestionRuns,
   sources,
 } from "@/db/schema";
-import { SCRAPE_SOURCES, type ScrapeSourceConfig } from "@/lib/ingestion/scrape-sources";
+import {
+  SCRAPE_SOURCES,
+  type ScrapeSourceConfig,
+} from "@/lib/ingestion/scrape-sources";
 
 type ScrapedItem = {
   id?: string;
@@ -46,27 +49,51 @@ function cleanText(value: string | null | undefined) {
     .trim();
 }
 
-function istDate(year: number, month: number, day: number, hour = 0, minute = 0, second = 0) {
+function istDate(
+  year: number,
+  month: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+) {
   const date = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
   date.setUTCMinutes(date.getUTCMinutes() - indiaOffsetMinutes);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function parseSourceDate(value: string | null | undefined): Date | null {
-  const text = value?.trim().replace(/^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[,\s]+/i, "");
+  const text = value
+    ?.trim()
+    .replace(
+      /^(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)[,\s]+/i,
+      "",
+    );
   if (!text) return null;
 
-  const zonedTimestamp = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
+  const zonedTimestamp =
+    /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})$/i;
   if (zonedTimestamp.test(text)) {
     const parsed = new Date(text);
-    return Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1990 ? null : parsed;
+    return Number.isNaN(parsed.getTime()) || parsed.getUTCFullYear() < 1990
+      ? null
+      : parsed;
   }
 
-  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);
+  const iso = text.match(
+    /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T ](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/,
+  );
   if (iso) {
     const year = Number(iso[1]);
     if (year < 1990) return null;
-    return istDate(year, Number(iso[2]), Number(iso[3]), Number(iso[4] ?? 0), Number(iso[5] ?? 0), Number(iso[6] ?? 0));
+    return istDate(
+      year,
+      Number(iso[2]),
+      Number(iso[3]),
+      Number(iso[4] ?? 0),
+      Number(iso[5] ?? 0),
+      Number(iso[6] ?? 0),
+    );
   }
 
   const numericDate = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
@@ -76,12 +103,21 @@ function parseSourceDate(value: string | null | undefined): Date | null {
     const year = Number(numericDate[3]);
     if (year < 1990 || month < 1 || month > 12) return null;
     const calendarCheck = new Date(Date.UTC(year, month - 1, day));
-    if (calendarCheck.getUTCMonth() !== month - 1 || calendarCheck.getUTCDate() !== day) return null;
+    if (
+      calendarCheck.getUTCMonth() !== month - 1 ||
+      calendarCheck.getUTCDate() !== day
+    )
+      return null;
     return istDate(year, month, day);
   }
 
-  const dateParts = text.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s./-]+([A-Za-z]{3,9}|\d{1,2})[,\.\s/-]+(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?$/i)
-    ?? text.match(/^([A-Za-z]{3,9})[\s./-]+(\d{1,2})(?:st|nd|rd|th)?[,\.\s/-]+(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?$/i);
+  const dateParts =
+    text.match(
+      /^(\d{1,2})(?:st|nd|rd|th)?[\s./-]+([A-Za-z]{3,9}|\d{1,2})[,\.\s/-]+(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?$/i,
+    ) ??
+    text.match(
+      /^([A-Za-z]{3,9})[\s./-]+(\d{1,2})(?:st|nd|rd|th)?[,\.\s/-]+(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm)?)?$/i,
+    );
   if (!dateParts) return null;
 
   const monthFirst = /^[A-Za-z]/.test(dateParts[1]);
@@ -93,7 +129,11 @@ function parseSourceDate(value: string | null | undefined): Date | null {
   const year = Number(dateParts[3]);
   if (year < 1990 || month < 1 || month > 12) return null;
   const calendarCheck = new Date(Date.UTC(year, month - 1, day));
-  if (calendarCheck.getUTCMonth() !== month - 1 || calendarCheck.getUTCDate() !== day) return null;
+  if (
+    calendarCheck.getUTCMonth() !== month - 1 ||
+    calendarCheck.getUTCDate() !== day
+  )
+    return null;
 
   let hour = Number(dateParts[4] ?? 0);
   const minute = Number(dateParts[5] ?? 0);
@@ -126,7 +166,10 @@ function extractExcerpt(text: string, title: string, dateText: string) {
   let excerpt = cleanText(text);
   if (title) excerpt = excerpt.replace(title, " ");
   if (dateText) excerpt = excerpt.replace(dateText, " ");
-  excerpt = excerpt.replace(/\bview\s+details\b/gi, " ").replace(/\s+/g, " ").trim();
+  excerpt = excerpt
+    .replace(/\bview\s+details\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   return excerpt ? excerpt.slice(0, 4_000) : null;
 }
 
@@ -135,9 +178,13 @@ function normalizeUrl(rawUrl: string, config: ScrapeSourceConfig) {
   if (parsed.protocol !== "https:") return null;
 
   const host = parsed.hostname.toLowerCase().replace(/^www\./, "");
-  const allowedHosts = [new URL(config.siteUrl).hostname, ...(config.allowedHosts ?? [])]
-    .map((allowed) => allowed.toLowerCase().replace(/^www\./, ""));
-  const isAllowed = allowedHosts.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
+  const allowedHosts = [
+    new URL(config.siteUrl).hostname,
+    ...(config.allowedHosts ?? []),
+  ].map((allowed) => allowed.toLowerCase().replace(/^www\./, ""));
+  const isAllowed = allowedHosts.some(
+    (allowed) => host === allowed || host.endsWith(`.${allowed}`),
+  );
   if (!isAllowed) return null;
 
   parsed.hash = "";
@@ -145,16 +192,25 @@ function normalizeUrl(rawUrl: string, config: ScrapeSourceConfig) {
   return parsed.toString();
 }
 
-async function fetchText(url: string, headers: Record<string, string> = requestHeaders) {
+async function fetchText(
+  url: string,
+  headers: Record<string, string> = requestHeaders,
+) {
   const response = await fetch(url, {
     headers,
     signal: AbortSignal.timeout(requestTimeoutMs),
   });
   if (!response.ok) throw new Error(`Source returned HTTP ${response.status}`);
-  return { text: await response.text(), contentType: response.headers.get("content-type") ?? "" };
+  return {
+    text: await response.text(),
+    contentType: response.headers.get("content-type") ?? "",
+  };
 }
 
-async function fetchJson<T>(url: string, headers: Record<string, string> = requestHeaders): Promise<T> {
+async function fetchJson<T>(
+  url: string,
+  headers: Record<string, string> = requestHeaders,
+): Promise<T> {
   const { text } = await fetchText(url, headers);
   return JSON.parse(text) as T;
 }
@@ -172,32 +228,54 @@ function parsePmIndia(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
   list.children("li").each((_, element) => {
     const card = $(element);
     const titleAnchor = card.find(".news-description h3 a[href]").first();
-    const fallbackAnchor = card.find("a[href]").filter((__, anchor) =>
-      new URL(anchor.attribs.href, config.siteUrl).pathname.startsWith("/en/news_updates/"),
-    ).first();
+    const fallbackAnchor = card
+      .find("a[href]")
+      .filter((__, anchor) =>
+        new URL(anchor.attribs.href, config.siteUrl).pathname.startsWith(
+          "/en/news_updates/",
+        ),
+      )
+      .first();
     const title = cleanText(titleAnchor.attr("title") || titleAnchor.text());
-    const sourceUrl = resolveLink(titleAnchor.attr("href") || fallbackAnchor.attr("href"), config);
+    const sourceUrl = resolveLink(
+      titleAnchor.attr("href") || fallbackAnchor.attr("href"),
+      config,
+    );
     if (!title || !sourceUrl) return;
 
     const description = card.find(".news-description").first();
     const descriptionText = description.text();
     const dateMatch = findDate(descriptionText);
-    const paragraphText = description.find("p").map((__, paragraph) => $(paragraph).text()).get().join(" ");
+    const paragraphText = description
+      .find("p")
+      .map((__, paragraph) => $(paragraph).text())
+      .get()
+      .join(" ");
     items.push({
       id: new URL(sourceUrl).pathname,
       title,
       sourceUrl,
       publishedAt: dateMatch.date,
-      excerpt: extractExcerpt(paragraphText || descriptionText, title, dateMatch.text),
+      excerpt: extractExcerpt(
+        paragraphText || descriptionText,
+        title,
+        dateMatch.text,
+      ),
       snapshot: { listingText: cleanText(descriptionText) },
     });
   });
 
-  if (!items.length) throw new Error("Could not find news items in the PM India news-holder list");
+  if (!items.length)
+    throw new Error(
+      "Could not find news items in the PM India news-holder list",
+    );
   return items;
 }
 
-function parseSupremeCourt(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
+function parseSupremeCourt(
+  html: string,
+  config: ScrapeSourceConfig,
+): ScrapedItem[] {
   const $ = cheerio.load(html);
   const items: ScrapedItem[] = [];
 
@@ -220,11 +298,17 @@ function parseSupremeCourt(html: string, config: ScrapeSourceConfig): ScrapedIte
     });
   });
 
-  if (!items.length) throw new Error("Could not find press-release cards in the Supreme Court listing");
+  if (!items.length)
+    throw new Error(
+      "Could not find press-release cards in the Supreme Court listing",
+    );
   return items;
 }
 
-function parsePresident(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
+function parsePresident(
+  html: string,
+  config: ScrapeSourceConfig,
+): ScrapedItem[] {
   const $ = cheerio.load(html);
   const rows = $("table.views-table tbody tr");
   const items: ScrapedItem[] = [];
@@ -237,7 +321,10 @@ function parsePresident(html: string, config: ScrapeSourceConfig): ScrapedItem[]
     const sourceUrl = resolveLink(titleAnchor.attr("href"), config);
     if (!title || !sourceUrl) return;
 
-    const dateText = cleanText(row.find(".views-field-field-date-1 time").attr("datetime") || row.find(".views-field-field-date-1").text());
+    const dateText = cleanText(
+      row.find(".views-field-field-date-1 time").attr("datetime") ||
+        row.find(".views-field-field-date-1").text(),
+    );
     items.push({
       id: new URL(sourceUrl).pathname,
       title,
@@ -248,7 +335,10 @@ function parsePresident(html: string, config: ScrapeSourceConfig): ScrapedItem[]
     });
   });
 
-  if (!items.length) throw new Error("Could not find press-release rows in the President of India listing");
+  if (!items.length)
+    throw new Error(
+      "Could not find press-release rows in the President of India listing",
+    );
   return items;
 }
 
@@ -279,21 +369,29 @@ async function fetchLokSabha(config: ScrapeSourceConfig) {
     size: "50",
   }).toString();
   const response = await fetchJson<LokSabhaApiResponse>(endpoint.toString());
-  if (!Array.isArray(response.records)) throw new Error("Lok Sabha API response did not contain a records array");
+  if (!Array.isArray(response.records))
+    throw new Error("Lok Sabha API response did not contain a records array");
 
   return response.records.flatMap((record) => {
     const title = cleanText(record.title);
     const sourceUrl = resolveLink(record.fileUrl, config);
     if (!title || !sourceUrl) return [];
-    return [{
-      id: String(record.id),
-      title,
-      sourceUrl,
-      publishedAt: parseSourceDate(record.publishedAt ?? record.eventDate),
-      excerpt: cleanText(record.description).slice(0, 4_000) || null,
-      mimeType: sourceUrl.toLowerCase().includes(".pdf") ? "application/pdf" : undefined,
-      snapshot: { eventDate: record.eventDate ?? null, publishedAt: record.publishedAt ?? null },
-    }];
+    return [
+      {
+        id: String(record.id),
+        title,
+        sourceUrl,
+        publishedAt: parseSourceDate(record.publishedAt ?? record.eventDate),
+        excerpt: cleanText(record.description).slice(0, 4_000) || null,
+        mimeType: sourceUrl.toLowerCase().includes(".pdf")
+          ? "application/pdf"
+          : undefined,
+        snapshot: {
+          eventDate: record.eventDate ?? null,
+          publishedAt: record.publishedAt ?? null,
+        },
+      },
+    ];
   });
 }
 
@@ -316,22 +414,30 @@ async function fetchRajyaSabha(config: ScrapeSourceConfig) {
   const response = await fetchJson<RajyaSabhaApiResponse>(
     "https://integration.rajyasabha.digital/committee-integration/api/v1/web/getpress_relese_otherhome",
   );
-  if (!Array.isArray(response.data)) throw new Error("Rajya Sabha API response did not contain a data array");
+  if (!Array.isArray(response.data))
+    throw new Error("Rajya Sabha API response did not contain a data array");
 
   return response.data.slice(0, 50).flatMap((record) => {
     if (record.publish && record.publish !== "Y") return [];
     const title = cleanText(record.txtpress);
     const sourceUrl = resolveLink(record.rptpressfile_dsp, config);
     if (!title || !sourceUrl) return [];
-    return [{
-      id: String(record.pressid),
-      title,
-      sourceUrl,
-      publishedAt: parseSourceDate(record.pub_date_order ?? record.pub_date),
-      excerpt: null,
-      mimeType: sourceUrl.toLowerCase().includes(".pdf") ? "application/pdf" : undefined,
-      snapshot: { publishedAt: record.pub_date ?? null, category: "Other Press Releases" },
-    }];
+    return [
+      {
+        id: String(record.pressid),
+        title,
+        sourceUrl,
+        publishedAt: parseSourceDate(record.pub_date_order ?? record.pub_date),
+        excerpt: null,
+        mimeType: sourceUrl.toLowerCase().includes(".pdf")
+          ? "application/pdf"
+          : undefined,
+        snapshot: {
+          publishedAt: record.pub_date ?? null,
+          category: "Other Press Releases",
+        },
+      },
+    ];
   });
 }
 
@@ -345,9 +451,16 @@ function parseDea(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
     const title = cleanText(row.find(".documentRecordTitle").first().text());
     const dateText = cleanText(row.find(".docDate").first().text());
     const links = row.find("a[href]").toArray();
-    const englishLink = links.find((link) => /(?:^|\/)(?:eng|e)\.pdf(?:$|[?#])/i.test(link.attribs.href));
-    const fallbackLink = links.find((link) => !/hin(?:di)?\.pdf/i.test(link.attribs.href)) ?? links[0];
-    const sourceUrl = resolveLink((englishLink ?? fallbackLink)?.attribs.href, config);
+    const englishLink = links.find((link) =>
+      /(?:^|\/)(?:eng|e)\.pdf(?:$|[?#])/i.test(link.attribs.href),
+    );
+    const fallbackLink =
+      links.find((link) => !/hin(?:di)?\.pdf/i.test(link.attribs.href)) ??
+      links[0];
+    const sourceUrl = resolveLink(
+      (englishLink ?? fallbackLink)?.attribs.href,
+      config,
+    );
     if (!title || !sourceUrl) return;
 
     items.push({
@@ -361,7 +474,10 @@ function parseDea(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
     });
   });
 
-  if (!items.length) throw new Error("Could not find release records in the DEA customTable listing");
+  if (!items.length)
+    throw new Error(
+      "Could not find release records in the DEA customTable listing",
+    );
   return items;
 }
 
@@ -372,11 +488,17 @@ function parseDfs(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
 
   rows.each((_, element) => {
     const row = $(element);
-    const title = cleanText(row.find(".views-field-field-pr-name").first().text());
-    const dateText = cleanText(
-      row.find(".views-field-field-pr-date time").attr("datetime") || row.find(".views-field-field-pr-date").text(),
+    const title = cleanText(
+      row.find(".views-field-field-pr-name").first().text(),
     );
-    const sourceUrl = resolveLink(row.find(".views-field-field-pr-link a[href]").first().attr("href"), config);
+    const dateText = cleanText(
+      row.find(".views-field-field-pr-date time").attr("datetime") ||
+        row.find(".views-field-field-pr-date").text(),
+    );
+    const sourceUrl = resolveLink(
+      row.find(".views-field-field-pr-link a[href]").first().attr("href"),
+      config,
+    );
     if (!title || !sourceUrl) return;
 
     const externalId = new URL(sourceUrl).searchParams.get("PRID");
@@ -386,16 +508,22 @@ function parseDfs(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
       sourceUrl,
       publishedAt: parseSourceDate(dateText),
       excerpt: null,
-      mimeType: sourceUrl.toLowerCase().includes(".pdf") ? "application/pdf" : "text/html",
+      mimeType: sourceUrl.toLowerCase().includes(".pdf")
+        ? "application/pdf"
+        : "text/html",
       snapshot: { publishedDate: dateText, linkOnListing: sourceUrl },
     });
   });
 
-  if (!items.length) throw new Error("Could not find press-release rows in the DFS listing");
+  if (!items.length)
+    throw new Error("Could not find press-release rows in the DFS listing");
   return items;
 }
 
-function parseVicePresident(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
+function parseVicePresident(
+  html: string,
+  config: ScrapeSourceConfig,
+): ScrapedItem[] {
   const $ = cheerio.load(html);
   const items: ScrapedItem[] = [];
 
@@ -407,7 +535,10 @@ function parseVicePresident(html: string, config: ScrapeSourceConfig): ScrapedIt
     if (!title || !sourceUrl) return;
 
     const datePanel = card.find(".event-date-panel").first();
-    const dateLabel = cleanText(datePanel.find("p").first().text()).replace(/^Publish:\s*/i, "");
+    const dateLabel = cleanText(datePanel.find("p").first().text()).replace(
+      /^Publish:\s*/i,
+      "",
+    );
     const year = cleanText(datePanel.find("strong").first().text());
     const dateText = `${dateLabel} ${year}`.trim();
     const excerpt = cleanText(card.find(".gen-card-content p").first().text());
@@ -421,7 +552,8 @@ function parseVicePresident(html: string, config: ScrapeSourceConfig): ScrapedIt
     });
   });
 
-  if (!items.length) throw new Error("Could not find news cards in the Vice President listing");
+  if (!items.length)
+    throw new Error("Could not find news cards in the Vice President listing");
   return items;
 }
 
@@ -437,7 +569,11 @@ function parseMea(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
     if (!title || !sourceUrl) return;
 
     const dateText = cleanText(card.find(".date").first().text());
-    const excerpt = card.find("p").map((__, paragraph) => $(paragraph).text()).get().join(" ");
+    const excerpt = card
+      .find("p")
+      .map((__, paragraph) => $(paragraph).text())
+      .get()
+      .join(" ");
     items.push({
       id: new URL(sourceUrl).pathname + new URL(sourceUrl).search,
       title,
@@ -448,7 +584,10 @@ function parseMea(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
     });
   });
 
-  if (!items.length) throw new Error("Could not find release cards in the MEA publication listing");
+  if (!items.length)
+    throw new Error(
+      "Could not find release cards in the MEA publication listing",
+    );
   return items;
 }
 
@@ -460,7 +599,10 @@ function parseCag(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
     const row = $(element).find(".listItem").first();
     const title = cleanText(row.find(".listReportTitle").first().text());
     const dateText = cleanText(row.find(".categoryText").first().text());
-    const sourceUrl = resolveLink(row.find(".downPdf a[href]").first().attr("href"), config);
+    const sourceUrl = resolveLink(
+      row.find(".downPdf a[href]").first().attr("href"),
+      config,
+    );
     if (!title || !sourceUrl) return;
 
     items.push({
@@ -474,35 +616,56 @@ function parseCag(html: string, config: ScrapeSourceConfig): ScrapedItem[] {
     });
   });
 
-  if (!items.length) throw new Error("Could not find press-release PDFs in the CAG listing");
+  if (!items.length)
+    throw new Error("Could not find press-release PDFs in the CAG listing");
   return items;
 }
 
 type CabinetListingEntry = { title?: string; link?: string };
 
-async function fetchCabinetSecretariat(config: ScrapeSourceConfig): Promise<ScrapedItem[]> {
+async function fetchCabinetSecretariat(
+  config: ScrapeSourceConfig,
+): Promise<ScrapedItem[]> {
   const page = await fetchText(config.listingUrl);
   if (!page.contentType.toLowerCase().includes("html")) {
-    throw new Error(`Expected the Cabinet Secretariat page, received ${page.contentType || "an unspecified content type"}`);
+    throw new Error(
+      `Expected the Cabinet Secretariat page, received ${page.contentType || "an unspecified content type"}`,
+    );
   }
 
-  const endpoint = new URL("/ajax_page_data.php?page_id=60", config.siteUrl).toString();
+  const endpoint = new URL(
+    "/ajax_page_data.php?page_id=60",
+    config.siteUrl,
+  ).toString();
   const records = await fetchJson<CabinetListingEntry[]>(endpoint, {
     ...requestHeaders,
     Accept: "application/json,text/html,*/*",
     Referer: config.listingUrl,
   });
-  const cabinetLink = records.find((record) => /cabinet decisions/i.test(cleanText(record.title)));
-  if (!cabinetLink?.link) throw new Error("The Cabinet Secretariat page did not return its Cabinet Decisions link");
+  const cabinetLink = records.find((record) =>
+    /cabinet decisions/i.test(cleanText(record.title)),
+  );
+  if (!cabinetLink?.link)
+    throw new Error(
+      "The Cabinet Secretariat page did not return its Cabinet Decisions link",
+    );
 
-  const cabinetUrl = normalizeUrl(cabinetLink.link.replace(/&amp;/g, "&"), config);
-  if (!cabinetUrl) throw new Error("The Cabinet Decisions link was outside the configured official hosts");
+  const cabinetUrl = normalizeUrl(
+    cabinetLink.link.replace(/&amp;/g, "&"),
+    config,
+  );
+  if (!cabinetUrl)
+    throw new Error(
+      "The Cabinet Decisions link was outside the configured official hosts",
+    );
   const listingUrl = new URL(cabinetUrl);
   listingUrl.searchParams.set("Lang", "1");
   listingUrl.searchParams.set("reg", "1");
   const listing = await fetchText(listingUrl.toString());
   if (!listing.contentType.toLowerCase().includes("html")) {
-    throw new Error(`Expected the Cabinet Decisions listing, received ${listing.contentType || "an unspecified content type"}`);
+    throw new Error(
+      `Expected the Cabinet Decisions listing, received ${listing.contentType || "an unspecified content type"}`,
+    );
   }
 
   const $ = cheerio.load(listing.text);
@@ -516,16 +679,24 @@ async function fetchCabinetSecretariat(config: ScrapeSourceConfig): Promise<Scra
 
     const dateText = cleanText(row.find(".publishdatesmall").first().text());
     items.push({
-      id: new URL(sourceUrl).searchParams.get("PRID") ?? new URL(sourceUrl).pathname,
+      id:
+        new URL(sourceUrl).searchParams.get("PRID") ??
+        new URL(sourceUrl).pathname,
       title,
       sourceUrl,
       publishedAt: parseSourceDate(dateText.replace(/^Posted on:\s*/i, "")),
       excerpt: null,
-      snapshot: { publishedDate: dateText, publicationHost: new URL(sourceUrl).hostname },
+      snapshot: {
+        publishedDate: dateText,
+        publicationHost: new URL(sourceUrl).hostname,
+      },
     });
   });
 
-  if (!items.length) throw new Error("Could not find Cabinet decision entries in the linked PIB listing");
+  if (!items.length)
+    throw new Error(
+      "Could not find Cabinet decision entries in the linked PIB listing",
+    );
   return items;
 }
 
@@ -554,96 +725,141 @@ type EciApiResponse = {
 
 function encryptEciCategory(category: string, key: string) {
   const keyBytes = Buffer.from(key, "utf8");
-  const cipher = createCipheriv(`aes-${keyBytes.byteLength * 8}-ecb`, keyBytes, null);
-  return encodeURIComponent(Buffer.concat([cipher.update(category, "utf8"), cipher.final()]).toString("base64"));
+  const cipher = createCipheriv(
+    `aes-${keyBytes.byteLength * 8}-ecb`,
+    keyBytes,
+    null,
+  );
+  return encodeURIComponent(
+    Buffer.concat([cipher.update(category, "utf8"), cipher.final()]).toString(
+      "base64",
+    ),
+  );
 }
 
-async function fetchEciPressReleases(config: ScrapeSourceConfig): Promise<ScrapedItem[]> {
+async function fetchEciPressReleases(
+  config: ScrapeSourceConfig,
+): Promise<ScrapedItem[]> {
   const page = await fetchText(config.listingUrl);
   if (!page.contentType.toLowerCase().includes("html")) {
-    throw new Error(`Expected the ECI press page, received ${page.contentType || "an unspecified content type"}`);
+    throw new Error(
+      `Expected the ECI press page, received ${page.contentType || "an unspecified content type"}`,
+    );
   }
   const $ = cheerio.load(page.text);
   const bundlePath = $("script[src]")
     .map((_, element) => $(element).attr("src"))
     .get()
-    .find((src) => Boolean(src && /\/static\/js\/main\.[^/]+\.js(?:\?|$)/.test(src)));
-  if (!bundlePath) throw new Error("Could not locate the ECI public website JavaScript bundle");
+    .find((src) =>
+      Boolean(src && /\/static\/js\/main\.[^/]+\.js(?:\?|$)/.test(src)),
+    );
+  if (!bundlePath)
+    throw new Error(
+      "Could not locate the ECI public website JavaScript bundle",
+    );
 
   const bundleUrl = new URL(bundlePath, config.siteUrl).toString();
   const bundle = (await fetchText(bundleUrl)).text;
-  const apiBase = bundle.match(/kl="(https:\/\/www\.eci\.gov\.in\/eci-backend\/public)"/)?.[1];
+  const apiBase = bundle.match(
+    /kl="(https:\/\/www\.eci\.gov\.in\/eci-backend\/public)"/,
+  )?.[1];
   const categoryKey = bundle.match(/ol="([^"]+)"/)?.[1];
   const apiSecret = bundle.match(/wl="([^"]+)"/)?.[1];
-  if (!apiBase || !categoryKey || !apiSecret) throw new Error("Could not resolve the ECI public API configuration");
+  if (!apiBase || !categoryKey || !apiSecret)
+    throw new Error("Could not resolve the ECI public API configuration");
 
   const category = encryptEciCategory("11", categoryKey);
-  const response = await fetchJson<EciApiResponse>(`${apiBase}/api/get-file?categories=${category}`, {
-    ...requestHeaders,
-    Accept: "application/json,*/*",
-    secret: apiSecret,
-  });
+  const response = await fetchJson<EciApiResponse>(
+    `${apiBase}/api/get-file?categories=${category}`,
+    {
+      ...requestHeaders,
+      Accept: "application/json,*/*",
+      secret: apiSecret,
+    },
+  );
   const records = response.results?.data;
-  if (!response.success || !Array.isArray(records)) throw new Error("The ECI public press-release API returned no records");
+  if (!response.success || !Array.isArray(records))
+    throw new Error("The ECI public press-release API returned no records");
 
   const items: ScrapedItem[] = records.flatMap((record) => {
     const attachments = record.document_attachments ?? [];
-    const attachment = attachments.find((candidate) => /^en$/i.test(candidate.pdf_type ?? ""))
-      ?? attachments.find((candidate) => Boolean(candidate.record_location));
+    const attachment =
+      attachments.find((candidate) => /^en$/i.test(candidate.pdf_type ?? "")) ??
+      attachments.find((candidate) => Boolean(candidate.record_location));
     const sourceUrl = resolveLink(attachment?.record_location, config);
     if (!sourceUrl) return [];
 
     const rawTitle = cleanText(record.document_title);
     const description = cleanText(record.document_description);
     const referenceNumber = cleanText(record.reference_number);
-    const title = !rawTitle || /^press\s+note$/i.test(rawTitle)
-      ? (!description || /^press\s+note$/i.test(description)
-        ? `Press Note${referenceNumber ? ` (${referenceNumber})` : ""}`
-        : description)
-      : rawTitle;
+    const title =
+      !rawTitle || /^press\s+note$/i.test(rawTitle)
+        ? !description || /^press\s+note$/i.test(description)
+          ? `Press Note${referenceNumber ? ` (${referenceNumber})` : ""}`
+          : description
+        : rawTitle;
     const dateText = cleanText(record.date_of_creation);
 
-    return [{
-      id: String(record.id ?? sourceUrl),
-      title,
-      sourceUrl,
-      publishedAt: parseSourceDate(dateText),
-      excerpt: description || null,
-      language: /^hi$/i.test(attachment?.pdf_type ?? "") ? "hi" : "en",
-      mimeType: "application/pdf",
-      snapshot: {
-        referenceNumber: referenceNumber || null,
-        sourceDate: dateText,
-        apiTitle: rawTitle || null,
-        tags: cleanText(record.tags),
+    return [
+      {
+        id: String(record.id ?? sourceUrl),
+        title,
+        sourceUrl,
+        publishedAt: parseSourceDate(dateText),
+        excerpt: description || null,
+        language: /^hi$/i.test(attachment?.pdf_type ?? "") ? "hi" : "en",
+        mimeType: "application/pdf",
+        snapshot: {
+          referenceNumber: referenceNumber || null,
+          sourceDate: dateText,
+          apiTitle: rawTitle || null,
+          tags: cleanText(record.tags),
+        },
       },
-    }];
+    ];
   });
 
-  if (!items.length) throw new Error("The ECI API returned no press notes with direct official attachments");
+  if (!items.length)
+    throw new Error(
+      "The ECI API returned no press notes with direct official attachments",
+    );
   return items;
 }
 
 async function fetchItems(config: ScrapeSourceConfig): Promise<ScrapedItem[]> {
-  if (config.parser === "lok-sabha-press-releases") return fetchLokSabha(config);
-  if (config.parser === "rajya-sabha-press-releases") return fetchRajyaSabha(config);
-  if (config.parser === "cabinet-secretariat-decisions") return fetchCabinetSecretariat(config);
-  if (config.parser === "election-commission-press-releases") return fetchEciPressReleases(config);
+  if (config.parser === "lok-sabha-press-releases")
+    return fetchLokSabha(config);
+  if (config.parser === "rajya-sabha-press-releases")
+    return fetchRajyaSabha(config);
+  if (config.parser === "cabinet-secretariat-decisions")
+    return fetchCabinetSecretariat(config);
+  if (config.parser === "election-commission-press-releases")
+    return fetchEciPressReleases(config);
 
   const { text, contentType } = await fetchText(config.listingUrl);
   if (!contentType.toLowerCase().includes("html")) {
-    throw new Error(`Expected an HTML listing, received ${contentType || "an unspecified content type"}`);
+    throw new Error(
+      `Expected an HTML listing, received ${contentType || "an unspecified content type"}`,
+    );
   }
 
   switch (config.parser) {
-    case "pm-india-news-updates": return parsePmIndia(text, config);
-    case "supreme-court-press-releases": return parseSupremeCourt(text, config);
-    case "president-press-releases": return parsePresident(text, config);
-    case "dea-press-releases": return parseDea(text, config);
-    case "dfs-press-releases": return parseDfs(text, config);
-    case "vice-president-news-updates": return parseVicePresident(text, config);
-    case "mea-press-releases": return parseMea(text, config);
-    case "cag-press-releases": return parseCag(text, config);
+    case "pm-india-news-updates":
+      return parsePmIndia(text, config);
+    case "supreme-court-press-releases":
+      return parseSupremeCourt(text, config);
+    case "president-press-releases":
+      return parsePresident(text, config);
+    case "dea-press-releases":
+      return parseDea(text, config);
+    case "dfs-press-releases":
+      return parseDfs(text, config);
+    case "vice-president-news-updates":
+      return parseVicePresident(text, config);
+    case "mea-press-releases":
+      return parseMea(text, config);
+    case "cag-press-releases":
+      return parseCag(text, config);
   }
   throw new Error(`No scraper is registered for ${config.parser}`);
 }
@@ -684,15 +900,21 @@ async function storeItem(
   item: ScrapedItem,
   activeEntities: EntityRecord[],
 ) {
-  const itemHash = createHashFor(JSON.stringify({
-    title: item.title,
-    sourceUrl: item.sourceUrl,
-    publishedAt: item.publishedAt?.toISOString() ?? null,
-    excerpt: item.excerpt,
-  }));
-  const stableId = createHashFor(`${config.key}|${item.id ?? ""}|${item.sourceUrl}|${item.title}`);
+  const itemHash = createHashFor(
+    JSON.stringify({
+      title: item.title,
+      sourceUrl: item.sourceUrl,
+      publishedAt: item.publishedAt?.toISOString() ?? null,
+      excerpt: item.excerpt,
+    }),
+  );
+  const stableId = createHashFor(
+    `${config.key}|${item.id ?? ""}|${item.sourceUrl}|${item.title}`,
+  );
   const entityLinks = config.entityLinks.flatMap((link) => {
-    const entity = activeEntities.find((candidate) => candidate.slug === link.slug);
+    const entity = activeEntities.find(
+      (candidate) => candidate.slug === link.slug,
+    );
     return entity ? [{ entityId: entity.id, ...link }] : [];
   });
 
@@ -700,15 +922,30 @@ async function storeItem(
     const existingSourceRecord = await tx
       .select({ documentId: documentSources.documentId })
       .from(documentSources)
-      .where(and(eq(documentSources.sourceId, sourceId), eq(documentSources.sourceUrl, item.sourceUrl)))
+      .where(
+        and(
+          eq(documentSources.sourceId, sourceId),
+          eq(documentSources.sourceUrl, item.sourceUrl),
+        ),
+      )
       .limit(1);
     if (existingSourceRecord.length) {
       if (entityLinks.length) {
-        await tx.insert(documentEntities).values(
-          entityLinks.map((link) => ({ documentId: existingSourceRecord[0].documentId, ...link })),
-        ).onConflictDoNothing();
+        await tx
+          .insert(documentEntities)
+          .values(
+            entityLinks.map((link) => ({
+              documentId: existingSourceRecord[0].documentId,
+              ...link,
+            })),
+          )
+          .onConflictDoNothing();
       }
-      return { created: false, updated: false, unlinked: entityLinks.length === 0 };
+      return {
+        created: false,
+        updated: false,
+        unlinked: entityLinks.length === 0,
+      };
     }
 
     const existingCanonicalRecord = await tx
@@ -727,7 +964,11 @@ async function storeItem(
           type: config.defaultDocumentType,
           body: item.excerpt,
           excerpt: item.excerpt?.slice(0, 500) ?? null,
-          language: item.language ?? (/\p{Script=Devanagari}/u.test(item.title) ? "hi" : config.defaultLanguage),
+          language:
+            item.language ??
+            (/\p{Script=Devanagari}/u.test(item.title)
+              ? "hi"
+              : config.defaultLanguage),
           publishedAt: item.publishedAt,
           contentHash: itemHash,
         })
@@ -756,28 +997,40 @@ async function storeItem(
         sourceItemId: stableId,
         sourcePublishedAt: item.publishedAt?.toISOString() ?? null,
         sourceSnapshot: snapshot,
-        mimeType: item.mimeType ?? (item.sourceUrl.toLowerCase().includes(".pdf") ? "application/pdf" : "text/html"),
+        mimeType:
+          item.mimeType ??
+          (item.sourceUrl.toLowerCase().includes(".pdf")
+            ? "application/pdf"
+            : "text/html"),
         checksum: itemHash,
       })
       .onConflictDoNothing()
       .returning({ id: documentSources.id });
 
     if (!observation) {
-      if (createdDocument) await tx.delete(documents).where(eq(documents.id, documentId));
-      return { created: false, updated: false, unlinked: entityLinks.length === 0 };
+      if (createdDocument)
+        await tx.delete(documents).where(eq(documents.id, documentId));
+      return {
+        created: false,
+        updated: false,
+        unlinked: entityLinks.length === 0,
+      };
     }
 
     if (entityLinks.length) {
-      await tx.insert(documentEntities).values(
-        entityLinks.map((link) => ({
-          documentId,
-          entityId: link.entityId,
-          relation: link.relation,
-          evidence: link.evidence,
-          confidence: link.confidence,
-          mappingMethod: link.mappingMethod,
-        })),
-      ).onConflictDoNothing();
+      await tx
+        .insert(documentEntities)
+        .values(
+          entityLinks.map((link) => ({
+            documentId,
+            entityId: link.entityId,
+            relation: link.relation,
+            evidence: link.evidence,
+            confidence: link.confidence,
+            mappingMethod: link.mappingMethod,
+          })),
+        )
+        .onConflictDoNothing();
     }
 
     return {
@@ -788,9 +1041,15 @@ async function storeItem(
   });
 }
 
-async function syncOneSource(config: ScrapeSourceConfig, activeEntities: EntityRecord[]) {
+async function syncOneSource(
+  config: ScrapeSourceConfig,
+  activeEntities: EntityRecord[],
+) {
   const sourceId = await upsertSource(config);
-  const [run] = await db.insert(ingestionRuns).values({ sourceId }).returning({ id: ingestionRuns.id });
+  const [run] = await db
+    .insert(ingestionRuns)
+    .values({ sourceId })
+    .returning({ id: ingestionRuns.id });
   if (!run) throw new Error(`Could not start ingestion run for ${config.key}`);
 
   let itemsRead = 0;
@@ -809,20 +1068,56 @@ async function syncOneSource(config: ScrapeSourceConfig, activeEntities: EntityR
       if (result.unlinked) unlinkedItems += 1;
     }
 
-    await db.update(sources)
+    await db
+      .update(sources)
       .set({ lastSuccessfulRunAt: new Date(), updatedAt: new Date() })
       .where(eq(sources.id, sourceId));
-    await db.update(ingestionRuns)
-      .set({ status: "succeeded", finishedAt: new Date(), pagesRead: 1, itemsRead, recordsCreated, recordsUpdated })
+    await db
+      .update(ingestionRuns)
+      .set({
+        status: "succeeded",
+        finishedAt: new Date(),
+        pagesRead: 1,
+        itemsRead,
+        recordsCreated,
+        recordsUpdated,
+      })
       .where(eq(ingestionRuns.id, run.id));
 
-    return { sourceKey: config.key, itemsRead, recordsCreated, recordsUpdated, unlinkedItems, status: "succeeded" as const };
+    return {
+      sourceKey: config.key,
+      itemsRead,
+      recordsCreated,
+      recordsUpdated,
+      unlinkedItems,
+      status: "succeeded" as const,
+    };
   } catch (error) {
-    const errorSummary = error instanceof Error ? error.message.slice(0, 1_000) : "Unknown scraper error";
-    await db.update(ingestionRuns)
-      .set({ status: "failed", finishedAt: new Date(), pagesRead: 1, itemsRead, recordsCreated, recordsUpdated, errorSummary })
+    const errorSummary =
+      error instanceof Error
+        ? error.message.slice(0, 1_000)
+        : "Unknown scraper error";
+    await db
+      .update(ingestionRuns)
+      .set({
+        status: "failed",
+        finishedAt: new Date(),
+        pagesRead: 1,
+        itemsRead,
+        recordsCreated,
+        recordsUpdated,
+        errorSummary,
+      })
       .where(eq(ingestionRuns.id, run.id));
-    return { sourceKey: config.key, itemsRead, recordsCreated, recordsUpdated, unlinkedItems, status: "failed" as const, error: errorSummary };
+    return {
+      sourceKey: config.key,
+      itemsRead,
+      recordsCreated,
+      recordsUpdated,
+      unlinkedItems,
+      status: "failed" as const,
+      error: errorSummary,
+    };
   }
 }
 
