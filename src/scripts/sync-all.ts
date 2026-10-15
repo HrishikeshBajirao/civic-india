@@ -11,8 +11,6 @@ async function main() {
   try {
     const results = await syncAllSources();
     console.log(JSON.stringify(results, null, 2));
-    if (results.some((result) => result.status === "failed"))
-      process.exitCode = 1;
   } finally {
     await closeDatabase();
   }
