@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { InstitutionMap } from "@/components/institution-map";
+import { SiteHeader } from "@/components/site-header";
 
 export const metadata: Metadata = {
   title: "Institutions of India | Civic India",
@@ -11,24 +11,7 @@ export const metadata: Metadata = {
 export default function InstitutionsPage() {
   return (
     <main className="app-page institutions-page">
-      <header className="site-header app-header">
-        <Link className="brand" href="/">
-          <span className="brand-mark">CI</span>
-          <span>Civic India</span>
-        </Link>
-        <nav className="app-header-right" aria-label="Main navigation">
-          <Link
-            className="button button-quiet"
-            href="/institutions"
-            aria-current="page"
-          >
-            Institutions
-          </Link>
-          <Link className="button button-dark" href="/dashboard">
-            My account
-          </Link>
-        </nav>
-      </header>
+      <SiteHeader />
       <section className="app-content institutions-content">
         <p className="eyebrow">EXPLORE THE REPUBLIC</p>
         <h1>India&apos;s institutions, connected.</h1>

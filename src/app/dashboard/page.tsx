@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { userFollows } from "@/db/schema";
-import { SignOutButton } from "@/components/sign-out-button";
+import { SiteHeader } from "@/components/site-header";
 import { auth } from "@/lib/auth";
 import { eq } from "drizzle-orm";
 
@@ -18,19 +18,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="app-page">
-      <header className="site-header app-header">
-        <Link className="brand" href="/dashboard">
-          <span className="brand-mark">CI</span>
-          <span>Civic India</span>
-        </Link>
-        <div className="app-header-right">
-          <Link className="button button-quiet" href="/institutions">
-            Institutions
-          </Link>
-          <span className="user-label">{current.user.email}</span>
-          <SignOutButton />
-        </div>
-      </header>
+      <SiteHeader />
       <section className="app-content">
         <p className="eyebrow">YOUR CIVIC INDIA</p>
         <h1>Welcome, {current.user.name.split(" ")[0]}.</h1>

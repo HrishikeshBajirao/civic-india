@@ -51,15 +51,6 @@ export function AuthForm({ mode }: AuthFormProps) {
   return (
     <div className="auth-layout">
       <aside className="auth-aside">
-        <div className="auth-aside-top">
-          <Link className="brand" href="/">
-            <span className="brand-mark">CI</span>
-            <span>Civic India</span>
-          </Link>
-          <Link className="button button-quiet" href="/institutions">
-            Institutions
-          </Link>
-        </div>
         <div className="auth-aside-copy">
           <p className="eyebrow">A MORE USEFUL PUBLIC RECORD</p>
           <h1>Follow what matters. Go straight to the source.</h1>
@@ -73,15 +64,6 @@ export function AuthForm({ mode }: AuthFormProps) {
 
       <main className="auth-main">
         <div className="auth-box">
-          <div className="auth-mobile-nav">
-            <Link className="brand auth-mobile-brand" href="/">
-              <span className="brand-mark">CI</span>
-              <span>Civic India</span>
-            </Link>
-            <Link className="button button-quiet" href="/institutions">
-              Institutions
-            </Link>
-          </div>
           <p className="eyebrow">
             {isRegister ? "GET STARTED" : "WELCOME BACK"}
           </p>

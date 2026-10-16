@@ -1,25 +1,10 @@
 import Link from "next/link";
+import { SiteHeader } from "@/components/site-header";
 
 export default function Home() {
   return (
     <main className="landing-page">
-      <header className="site-header landing-header">
-        <Link className="brand" href="/">
-          <span className="brand-mark">CI</span>
-          <span>Civic India</span>
-        </Link>
-        <nav className="header-actions" aria-label="Account">
-          <Link className="button button-quiet" href="/institutions">
-            Institutions
-          </Link>
-          <Link className="button button-quiet" href="/login">
-            Log in
-          </Link>
-          <Link className="button button-dark" href="/register">
-            Create account
-          </Link>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <section className="hero">
         <p className="eyebrow">PUBLIC INFORMATION, MADE FOLLOWABLE</p>

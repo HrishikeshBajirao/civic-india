@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { FollowPackage } from "@/data/follow-packages";
 
@@ -11,6 +12,7 @@ type EntityRow = {
   description: string | null;
   aliases: string[];
   followed: boolean;
+  scope: "union" | "state" | "territory" | "local" | "other";
 };
 
 type EntityBrowserProps = {
@@ -55,6 +57,8 @@ export function EntityBrowser({
   const [typeFilter, setTypeFilter] = useState("all");
   const [jurisdictionFilter, setJurisdictionFilter] = useState("all");
   const [followFilter, setFollowFilter] = useState("all");
+  const [scopeFilter, setScopeFilter] = useState("all");
+  const [sortOrder, setSortOrder] = useState("a-z");
   const [showAllPackages, setShowAllPackages] = useState(false);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -89,32 +93,47 @@ export function EntityBrowser({
 
   const filteredEntities = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    return entities.filter((entity) => {
-      if (
-        normalizedQuery &&
-        ![
-          entity.name,
-          entity.slug,
-          entity.type,
-          entity.description ?? "",
-          ...entity.aliases,
-        ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
-      )
-        return false;
-      if (typeFilter !== "all" && entity.type !== typeFilter) return false;
-      if (followFilter === "following" && !entity.followed) return false;
-      if (followFilter === "not-following" && entity.followed) return false;
-      if (jurisdictionFilter !== "all") {
-        const isState = jurisdictionFilter.startsWith("state-");
-        const sharedStructure = isState
-          ? stateStructureSlugs.has(entity.slug)
-          : territoryStructureSlugs.has(entity.slug);
-        if (entity.slug !== jurisdictionFilter && !sharedStructure)
+    return entities
+      .filter((entity) => {
+        if (
+          normalizedQuery &&
+          ![
+            entity.name,
+            entity.slug,
+            entity.type,
+            entity.description ?? "",
+            ...entity.aliases,
+          ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery))
+        )
           return false;
-      }
-      return true;
-    });
-  }, [entities, followFilter, jurisdictionFilter, query, typeFilter]);
+        if (typeFilter !== "all" && entity.type !== typeFilter) return false;
+        if (scopeFilter !== "all" && entity.scope !== scopeFilter) return false;
+        if (followFilter === "following" && !entity.followed) return false;
+        if (followFilter === "not-following" && entity.followed) return false;
+        if (jurisdictionFilter !== "all") {
+          const isState = jurisdictionFilter.startsWith("state-");
+          const sharedStructure = isState
+            ? stateStructureSlugs.has(entity.slug)
+            : territoryStructureSlugs.has(entity.slug);
+          if (entity.slug !== jurisdictionFilter && !sharedStructure)
+            return false;
+        }
+        return true;
+      })
+      .sort((a, b) =>
+        sortOrder === "z-a"
+          ? b.name.localeCompare(a.name)
+          : a.name.localeCompare(b.name),
+      );
+  }, [
+    entities,
+    followFilter,
+    jurisdictionFilter,
+    query,
+    scopeFilter,
+    sortOrder,
+    typeFilter,
+  ]);
 
   const visiblePackages = showAllPackages
     ? packages
@@ -189,168 +208,107 @@ export function EntityBrowser({
   }
 
   return (
-    <>
-      <section
-        className="panel follow-packages-panel"
-        aria-labelledby="follow-packages-heading"
-      >
-        <div className="follow-section-heading">
-          <div>
-            <p className="eyebrow">START WITH A KIT</p>
-            <h2 id="follow-packages-heading">Follow packages</h2>
-          </div>
-          <span className="follow-package-count">
-            {packages.length} packages
-          </span>
+    <div className="entity-browser-layout">
+      <aside className="filter-console" aria-label="Institution filters">
+        <div className="filter-console-heading">
+          <p className="eyebrow">FILTER CONSOLE</p>
+          <h2>Find an institution</h2>
+          <p>{entities.length} public entities</p>
         </div>
-        <p className="panel-subtitle">
-          Choose a set of institutions to follow together. You can change your
-          follows at any time.
-        </p>
-        <div className="follow-package-grid">
-          {visiblePackages.map((item) => {
-            const available = [...new Set(item.entitySlugs)]
-              .map((slug) => entityBySlug.get(slug))
-              .filter((entity): entity is EntityRow => Boolean(entity));
-            const remaining = available.filter(
-              (entity) => !entity.followed,
-            ).length;
-            const unavailable = available.length === 0;
-            const isPending = pendingId === item.id;
-            return (
-              <article className="follow-package-card" key={item.id}>
-                <div className="follow-package-topline">
-                  <span className="follow-package-icon" aria-hidden="true">
-                    {item.icon}
-                  </span>
-                  <span className="follow-package-size">
-                    {available.length} entities
-                  </span>
-                </div>
-                <div className="follow-package-copy">
-                  <h3>{item.title}</h3>
-                  <p>{item.description}</p>
-                </div>
-                <button
-                  className={`button follow-package-action ${remaining ? "button-dark" : "button-quiet"}`}
-                  type="button"
-                  onClick={() => void followPackage(item)}
-                  disabled={Boolean(pendingId) || remaining === 0}
-                  aria-label={
-                    unavailable
-                      ? `${item.title} entities are not available yet`
-                      : remaining
-                        ? `Follow ${remaining} remaining entities in ${item.title}`
-                        : `Already following all entities in ${item.title}`
-                  }
-                >
-                  {isPending
-                    ? "Adding…"
-                    : unavailable
-                      ? "Coming soon"
-                      : remaining
-                        ? `Follow ${remaining} remaining`
-                        : "Following all ✓"}
-                </button>
-              </article>
-            );
-          })}
-        </div>
-        {packages.length > 5 && (
-          <button
-            className="follow-packages-toggle"
-            type="button"
-            aria-expanded={showAllPackages}
-            onClick={() => setShowAllPackages((shown) => !shown)}
+        <label className="feed-filter-field entity-search-field">
+          Search
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Name, office or alias"
+          />
+        </label>
+        <label className="feed-filter-field">
+          Connection to India
+          <select
+            value={scopeFilter}
+            onChange={(event) => setScopeFilter(event.target.value)}
           >
-            {showAllPackages
-              ? "Show the 5 featured packages"
-              : `Explore more packages (${packages.length - 5} more)`}
-            <span aria-hidden="true">{showAllPackages ? "↑" : "↓"}</span>
-          </button>
-        )}
-      </section>
-
-      <section
-        className="panel entity-browser-panel"
-        aria-labelledby="entity-browser-heading"
-      >
-        <div className="follow-section-heading">
-          <div>
-            <p className="eyebrow">BROWSE INDIVIDUALLY</p>
-            <h2 id="entity-browser-heading">Institutions and public offices</h2>
-          </div>
-          <span className="follow-package-count">
-            {filteredEntities.length} of {entities.length}
-          </span>
-        </div>
-        <p className="panel-subtitle">
-          Search names and aliases, then narrow by jurisdiction, entity type or
-          your current follows.
-        </p>
-
-        <div
-          className="entity-filters"
-          role="search"
-          aria-label="Find institutions to follow"
-        >
-          <label className="feed-filter-field entity-search-field">
-            Search
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search institutions or aliases"
-            />
-          </label>
-          <label className="feed-filter-field">
-            State or Union Territory
-            <select
-              value={jurisdictionFilter}
-              onChange={(event) => setJurisdictionFilter(event.target.value)}
-            >
-              <option value="all">All jurisdictions</option>
-              <optgroup label="States">
-                {states.map((state) => (
-                  <option value={state.slug} key={state.id}>
-                    {state.name}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label="Union Territories">
-                {territories.map((territory) => (
-                  <option value={territory.slug} key={territory.id}>
-                    {territory.name}
-                  </option>
-                ))}
-              </optgroup>
-            </select>
-          </label>
-          <label className="feed-filter-field">
-            Entity type
-            <select
-              value={typeFilter}
-              onChange={(event) => setTypeFilter(event.target.value)}
-            >
-              <option value="all">All types</option>
-              {types.map((type) => (
-                <option value={type} key={type}>
-                  {labelType(type)}
+            <option value="all">All connections</option>
+            <option value="union">Union government</option>
+            <option value="state">State government</option>
+            <option value="territory">Union Territory</option>
+            <option value="local">Local government</option>
+            <option value="other">Other public entities</option>
+          </select>
+        </label>
+        <label className="feed-filter-field">
+          State or Union Territory
+          <select
+            value={jurisdictionFilter}
+            onChange={(event) => setJurisdictionFilter(event.target.value)}
+          >
+            <option value="all">All jurisdictions</option>
+            <optgroup label="States">
+              {states.map((state) => (
+                <option value={state.slug} key={state.id}>
+                  {state.name}
                 </option>
               ))}
-            </select>
-          </label>
-          <label className="feed-filter-field">
-            Follow status
-            <select
-              value={followFilter}
-              onChange={(event) => setFollowFilter(event.target.value)}
-            >
-              <option value="all">All institutions</option>
-              <option value="following">Following</option>
-              <option value="not-following">Not following</option>
-            </select>
-          </label>
-        </div>
+            </optgroup>
+            <optgroup label="Union Territories">
+              {territories.map((territory) => (
+                <option value={territory.slug} key={territory.id}>
+                  {territory.name}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </label>
+        <label className="feed-filter-field">
+          Entity type
+          <select
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value)}
+          >
+            <option value="all">All types</option>
+            {types.map((type) => (
+              <option value={type} key={type}>
+                {labelType(type)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="feed-filter-field">
+          Follow status
+          <select
+            value={followFilter}
+            onChange={(event) => setFollowFilter(event.target.value)}
+          >
+            <option value="all">All institutions</option>
+            <option value="following">Following</option>
+            <option value="not-following">Not following</option>
+          </select>
+        </label>
+        <label className="feed-filter-field">
+          Sort entities
+          <select
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value)}
+          >
+            <option value="a-z">Name: A to Z</option>
+            <option value="z-a">Name: Z to A</option>
+          </select>
+        </label>
+        <button
+          className="button button-quiet filter-console-clear"
+          type="button"
+          onClick={() => {
+            setQuery("");
+            setTypeFilter("all");
+            setJurisdictionFilter("all");
+            setFollowFilter("all");
+            setScopeFilter("all");
+            setSortOrder("a-z");
+          }}
+        >
+          Clear filters
+        </button>
         {jurisdictionFilter !== "all" && (
           <p className="entity-filter-note">
             Showing the selected jurisdiction and shared{" "}
@@ -360,54 +318,170 @@ export function EntityBrowser({
             institution categories.
           </p>
         )}
-        {error && (
-          <p className="form-message entity-feedback" role="alert">
-            {error}
-          </p>
-        )}
-        {message && (
-          <p className="entity-success entity-feedback" role="status">
-            {message}
-          </p>
-        )}
-
-        {filteredEntities.length === 0 ? (
-          <p className="empty-state">
-            No institutions match these filters. Try a broader search or clear a
-            filter.
-          </p>
-        ) : (
-          <div className="entity-list">
-            {filteredEntities.map((entity) => (
-              <article className="entity-row" key={entity.id}>
-                <span className="entity-avatar" aria-hidden="true">
-                  {initials(entity.name)}
-                </span>
-                <div className="entity-copy">
-                  <strong>{entity.name}</strong>
-                  <span>
-                    {entity.description
-                      ? `${entity.description} · ${labelType(entity.type)}`
-                      : labelType(entity.type)}
-                  </span>
-                </div>
-                <button
-                  className={`button entity-action ${entity.followed ? "button-quiet" : "button-dark"}`}
-                  type="button"
-                  onClick={() => void updateFollow(entity.id, !entity.followed)}
-                  disabled={Boolean(pendingId)}
-                >
-                  {pendingId === entity.id
-                    ? "Saving…"
-                    : entity.followed
-                      ? "Following ✓"
-                      : "+ Follow"}
-                </button>
-              </article>
-            ))}
+      </aside>
+      <div className="entity-browser-main">
+        <section
+          className="panel follow-packages-panel"
+          aria-labelledby="follow-packages-heading"
+        >
+          <div className="follow-section-heading">
+            <div>
+              <p className="eyebrow">START WITH A KIT</p>
+              <h2 id="follow-packages-heading">Follow packages</h2>
+            </div>
+            <span className="follow-package-count">
+              {packages.length} packages
+            </span>
           </div>
-        )}
-      </section>
-    </>
+          <p className="panel-subtitle">
+            Choose a set of institutions to follow together. You can change your
+            follows at any time.
+          </p>
+          <div className="follow-package-grid">
+            {visiblePackages.map((item) => {
+              const available = [...new Set(item.entitySlugs)]
+                .map((slug) => entityBySlug.get(slug))
+                .filter((entity): entity is EntityRow => Boolean(entity));
+              const remaining = available.filter(
+                (entity) => !entity.followed,
+              ).length;
+              const unavailable = available.length === 0;
+              const isPending = pendingId === item.id;
+              return (
+                <article className="follow-package-card" key={item.id}>
+                  <div className="follow-package-topline">
+                    <span className="follow-package-icon" aria-hidden="true">
+                      {item.icon}
+                    </span>
+                    <span className="follow-package-size">
+                      {available.length} entities
+                    </span>
+                  </div>
+                  <div className="follow-package-copy">
+                    <h3>{item.title}</h3>
+                    <p>{item.description}</p>
+                  </div>
+                  <button
+                    className={`button follow-package-action ${remaining ? "button-dark" : "button-quiet"}`}
+                    type="button"
+                    onClick={() => void followPackage(item)}
+                    disabled={Boolean(pendingId) || remaining === 0}
+                    aria-label={
+                      unavailable
+                        ? `${item.title} entities are not available yet`
+                        : remaining
+                          ? `Follow ${remaining} remaining entities in ${item.title}`
+                          : `Already following all entities in ${item.title}`
+                    }
+                  >
+                    {isPending
+                      ? "Adding…"
+                      : unavailable
+                        ? "Coming soon"
+                        : remaining
+                          ? `Follow ${remaining} remaining`
+                          : "Following all ✓"}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+          {packages.length > 5 && (
+            <button
+              className="follow-packages-toggle"
+              type="button"
+              aria-expanded={showAllPackages}
+              onClick={() => setShowAllPackages((shown) => !shown)}
+            >
+              {showAllPackages
+                ? "Show the 5 featured packages"
+                : `Explore more packages (${packages.length - 5} more)`}
+              <span aria-hidden="true">{showAllPackages ? "↑" : "↓"}</span>
+            </button>
+          )}
+        </section>
+
+        <section
+          className="panel entity-browser-panel"
+          aria-labelledby="entity-browser-heading"
+        >
+          <div className="follow-section-heading">
+            <div>
+              <p className="eyebrow">BROWSE INDIVIDUALLY</p>
+              <h2 id="entity-browser-heading">
+                Institutions and public offices
+              </h2>
+            </div>
+            <span className="follow-package-count">
+              {filteredEntities.length} of {entities.length}
+            </span>
+          </div>
+          <p className="panel-subtitle">
+            Search names and aliases, then narrow by jurisdiction, entity type
+            or your current follows.
+          </p>
+
+          {error && (
+            <p className="form-message entity-feedback" role="alert">
+              {error}
+            </p>
+          )}
+          {message && (
+            <p className="entity-success entity-feedback" role="status">
+              {message}
+            </p>
+          )}
+
+          {filteredEntities.length === 0 ? (
+            <p className="empty-state">
+              No institutions match these filters. Try a broader search or clear
+              a filter.
+            </p>
+          ) : (
+            <div className="entity-list">
+              {filteredEntities.map((entity) => (
+                <article className="entity-row" key={entity.id}>
+                  <span className="entity-avatar" aria-hidden="true">
+                    {initials(entity.name)}
+                  </span>
+                  <div className="entity-copy">
+                    <strong>
+                      <Link href={"/entities/" + entity.slug}>
+                        {entity.name}
+                      </Link>
+                    </strong>
+                    <span>
+                      {entity.description
+                        ? `${entity.description} · ${labelType(entity.type)}`
+                        : labelType(entity.type)}
+                    </span>
+                    <Link
+                      className="entity-profile-link"
+                      href={"/entities/" + entity.slug}
+                    >
+                      View profile and updates <span aria-hidden="true">→</span>
+                    </Link>
+                  </div>
+                  <button
+                    className={`button entity-action ${entity.followed ? "button-quiet" : "button-dark"}`}
+                    type="button"
+                    onClick={() =>
+                      void updateFollow(entity.id, !entity.followed)
+                    }
+                    disabled={Boolean(pendingId)}
+                  >
+                    {pendingId === entity.id
+                      ? "Saving…"
+                      : entity.followed
+                        ? "Following ✓"
+                        : "+ Follow"}
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
   );
 }
