@@ -2209,7 +2209,7 @@ input {
 
 .feed-filter-console .feed-filter-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .feed-filter-console .feed-filter-actions .button {
@@ -2246,6 +2246,65 @@ input {
   font-weight: 700;
   line-height: 1.3;
   overflow-wrap: anywhere;
+}
+
+.feed-card-tag-button {
+  border: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.feed-card-tag-button:hover {
+  background: #dce9dd;
+  color: #254c38;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.feed-card-tag-button:focus-visible {
+  outline: 2px solid #254c38;
+  outline-offset: 2px;
+}
+
+.feed-active-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin: 0 0 14px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #f8faf7;
+}
+
+.feed-active-summary-heading {
+  color: #294937;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.feed-active-summary > span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.feed-remove-filters {
+  display: flex;
+  justify-content: flex-start;
+  margin: -6px 0 14px;
+}
+
+.feed-remove-filters .button {
+  min-height: 34px;
+  font-size: 10px;
 }
 
 .feed-card-excerpt {
@@ -2353,7 +2412,7 @@ input {
     grid-column: auto;
   }
   .feed-filter-console .feed-filter-actions {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import type { ChangeEvent } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { activityCategories } from "@/lib/activity-categories";
 import type { FeedPageData, FollowedEntity } from "@/lib/feed-data";
@@ -55,9 +54,6 @@ export function FeedFilterConsole({ followedEntities, filters }: Props) {
       scroll: false,
     });
   }
-
-  const clearFiltersHref =
-    filters.view === "list" ? "/feed?view=list" : "/feed";
 
   return (
     <form
@@ -227,9 +223,6 @@ export function FeedFilterConsole({ followedEntities, filters }: Props) {
         <button className="button button-dark" type="submit">
           Apply search
         </button>
-        <Link className="button button-quiet" href={clearFiltersHref}>
-          Clear
-        </Link>
       </div>
     </form>
   );

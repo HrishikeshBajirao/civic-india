@@ -5,7 +5,23 @@ import { FeedFilterConsole } from "@/components/feed-filter-console";
 import { FeedItemList } from "@/components/feed-item-list";
 import { SiteHeader } from "@/components/site-header";
 import { auth } from "@/lib/auth";
-import { getFeedPage, type FeedSearchParams } from "@/lib/feed-data";
+import {
+  feedPageSize,
+  getFeedPage,
+  type FeedSearchParams,
+} from "@/lib/feed-data";
+import { activityCategories } from "@/lib/activity-categories";
+
+const relationLabels: Record<string, string> = {
+  issuer: "Issued by the entity",
+  about: "About the entity",
+  mentions: "Mentions the entity",
+};
+
+function summarizeLabels(labels: string[], limit = 3) {
+  if (labels.length <= limit) return labels.join(", ");
+  return `${labels.slice(0, limit).join(", ")} +${labels.length - limit} more`;
+}
 
 function buildFeedQuery(
   filters: Awaited<ReturnType<typeof getFeedPage>>["filters"],
@@ -36,8 +52,53 @@ export default async function FeedPage({
   const feed = await getFeedPage(current.user.id, params);
   const { filters, followedEntities } = feed;
   const query = buildFeedQuery(filters);
-  const clearFiltersHref =
-    filters.view === "list" ? "/feed?view=list" : "/feed";
+  const sortLabel =
+    filters.sort === "newest"
+      ? "newest first"
+      : filters.sort === "oldest"
+        ? "oldest first"
+        : "title A to Z";
+  const activeFilters: string[] = [];
+  if (filters.searchTerm) activeFilters.push(`Search: “${filters.searchTerm}”`);
+  if (filters.entityIds.length > 0) {
+    const names = followedEntities
+      .filter((entity) => filters.entityIds.includes(entity.id))
+      .map((entity) => entity.name);
+    activeFilters.push(
+      `Entities: ${names.length > 2 ? `${names.length} selected` : names.join(", ")}`,
+    );
+  }
+  if (filters.activities.length > 0) {
+    const labels = filters.activities.map(
+      (id) =>
+        activityCategories.find((category) => category.id === id)?.label ?? id,
+    );
+    activeFilters.push(`Activity: ${summarizeLabels(labels, 2)}`);
+  }
+  if (filters.documentTypes.length > 0) {
+    const labels = filters.documentTypes.map((type) =>
+      type.replaceAll("_", " "),
+    );
+    activeFilters.push(`Document type: ${summarizeLabels(labels)}`);
+  }
+  if (filters.relations.length > 0) {
+    const labels = filters.relations.map(
+      (relation) => relationLabels[relation],
+    );
+    activeFilters.push(`Connection: ${summarizeLabels(labels)}`);
+  }
+  if (filters.from || filters.to) {
+    activeFilters.push(
+      `Date range: ${filters.from ? `from ${filters.from}` : "any date"}${
+        filters.to ? ` through ${filters.to}` : ""
+      }`,
+    );
+  }
+  const removeFiltersQuery = new URLSearchParams({
+    sort: filters.sort,
+    view: filters.view,
+  });
+  const removeFiltersHref = "/feed?" + removeFiltersQuery.toString();
 
   function viewHref(view: "grid" | "list") {
     return "/feed?" + buildFeedQuery(filters, view);
@@ -68,11 +129,7 @@ export default async function FeedPage({
             )}
             <div className="feed-toolbar">
               <p className="feed-count">
-                {filters.sort === "newest"
-                  ? "Newest first"
-                  : filters.sort === "oldest"
-                    ? "Oldest first"
-                    : "Title A to Z"}
+                Up to {feedPageSize} updates per load
               </p>
               <nav className="feed-view-toggle" aria-label="Feed layout">
                 <Link
@@ -111,7 +168,9 @@ export default async function FeedPage({
                 nextOffset={feed.nextOffset}
                 query={query}
                 view={filters.view}
-                clearFiltersHref={clearFiltersHref}
+                removeFiltersHref={removeFiltersHref}
+                activeFilters={activeFilters}
+                sortLabel={sortLabel}
               />
             )}
           </div>

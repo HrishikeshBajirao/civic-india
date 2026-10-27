@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { activityCategories } from "@/lib/activity-categories";
 import type { FeedItem } from "@/lib/feed-data";
 
@@ -17,7 +18,9 @@ type Props = {
   nextOffset: number;
   query: string;
   view: "grid" | "list";
-  clearFiltersHref: string;
+  removeFiltersHref: string;
+  activeFilters: string[];
+  sortLabel: string;
 };
 
 function formatDate(value: string) {
@@ -34,13 +37,26 @@ export function FeedItemList({
   nextOffset: initialNextOffset,
   query,
   view,
-  clearFiltersHref,
+  removeFiltersHref,
+  activeFilters,
+  sortLabel,
 }: Props) {
+  const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [nextOffset, setNextOffset] = useState(initialNextOffset);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  function filterBy(name: "activity" | "documentType", value: string) {
+    const params = new URLSearchParams(query);
+    const currentValues = params.getAll(name);
+    params.delete(name);
+    if (currentValues.length !== 1 || currentValues[0] !== value) {
+      params.set(name, value);
+    }
+    router.push(`/feed?${params.toString()}`, { scroll: false });
+  }
 
   async function loadMore() {
     if (isLoading || !hasMore) return;
@@ -70,6 +86,22 @@ export function FeedItemList({
 
   return (
     <>
+      <div className="feed-active-summary" aria-live="polite">
+        <strong className="feed-active-summary-heading">Feed view</strong>
+        <span>Sorted by {sortLabel}</span>
+        <span>
+          {activeFilters.length > 0
+            ? `Filters: ${activeFilters.join(" · ")}`
+            : "No filters applied"}
+        </span>
+      </div>
+      {activeFilters.length > 0 && (
+        <div className="feed-remove-filters">
+          <Link className="button button-quiet" href={removeFiltersHref}>
+            Remove filters
+          </Link>
+        </div>
+      )}
       {items.length === 0 ? (
         <section className="panel feed-empty">
           <h2>
@@ -82,11 +114,6 @@ export function FeedItemList({
               ? "Continue loading to look further through your publications."
               : "Try a wider date range or clear the filters to see more updates."}
           </p>
-          {!hasMore && (
-            <Link className="button button-dark" href={clearFiltersHref}>
-              Clear filters
-            </Link>
-          )}
         </section>
       ) : (
         <section
@@ -102,17 +129,28 @@ export function FeedItemList({
                   {formatDate(timestamp)}
                 </time>
                 <div className="feed-card-tags">
-                  <span className="feed-card-tag">
+                  <button
+                    className="feed-card-tag feed-card-tag-button"
+                    type="button"
+                    aria-label={`Filter by document type: ${item.type.replaceAll("_", " ")}`}
+                    onClick={() => filterBy("documentType", item.type)}
+                  >
                     {item.type.replaceAll("_", " ")}
-                  </span>
+                  </button>
                   {item.categories.slice(0, 2).map((categoryId) => {
                     const category = activityCategories.find(
                       (candidate) => candidate.id === categoryId,
                     );
                     return category ? (
-                      <span className="feed-card-tag" key={categoryId}>
+                      <button
+                        className="feed-card-tag feed-card-tag-button"
+                        key={categoryId}
+                        type="button"
+                        aria-label={`Filter by activity: ${category.label}`}
+                        onClick={() => filterBy("activity", categoryId)}
+                      >
                         {category.label}
-                      </span>
+                      </button>
                     ) : null;
                   })}
                 </div>
