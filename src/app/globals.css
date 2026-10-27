@@ -2117,6 +2117,90 @@ input {
   margin: 0;
 }
 
+.feed-filter-group {
+  min-width: 0;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.feed-filter-group > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  list-style-position: inside;
+}
+
+.feed-filter-group > summary::marker {
+  color: #64816d;
+}
+
+.feed-filter-group-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.feed-filter-options {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.feed-filter-entity-options {
+  max-height: 240px;
+  overflow: auto;
+  padding-right: 3px;
+}
+
+.feed-filter-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  color: #425249;
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1.4;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
+}
+
+.feed-filter-option:hover {
+  border-color: #9caf9f;
+  background: #f7f9f5;
+}
+
+.feed-filter-option:has(input:checked) {
+  border-color: #77917d;
+  background: var(--green-light);
+  color: #294937;
+}
+
+.feed-filter-option input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  min-height: 14px;
+  margin: 0;
+  accent-color: #254c38;
+}
+
+.feed-filter-option span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .feed-filter-date-pair {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2179,6 +2263,34 @@ input {
   margin-top: 16px;
 }
 
+.feed-load-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 22px 0 10px;
+}
+
+.feed-load-more .button {
+  min-height: 40px;
+}
+
+.feed-load-more .button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.feed-load-more > span,
+.feed-end-note {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.feed-end-note {
+  margin: 20px 0;
+  text-align: center;
+}
+
 @media (max-width: 900px) {
   .entity-browser-layout,
   .feed-workspace-layout {
@@ -2202,6 +2314,9 @@ input {
   .filter-console-note,
   .filter-console-clear,
   .feed-filter-actions {
+    grid-column: 1 / -1;
+  }
+  .feed-filter-group {
     grid-column: 1 / -1;
   }
   .feed-filter-date-pair {
