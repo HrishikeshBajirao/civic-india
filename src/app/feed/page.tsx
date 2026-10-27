@@ -18,6 +18,7 @@ import {
   classifyActivity,
   type ActivityCategoryId,
 } from "@/lib/activity-categories";
+import { buildDocumentTextSearch } from "@/lib/document-search";
 
 const documentTypes = [
   "press_release",
@@ -43,6 +44,7 @@ type FeedItem = {
 
 type FeedSearchParams = {
   entity?: string | string[];
+  q?: string | string[];
   from?: string | string[];
   to?: string | string[];
   sort?: string | string[];
@@ -88,6 +90,7 @@ export default async function FeedPage({
 
   const params = await searchParams;
   const requestedEntityId = singleParam(params.entity);
+  const requestedQuery = singleParam(params.q);
   const requestedFrom = singleParam(params.from);
   const requestedTo = singleParam(params.to);
   const requestedActivity = singleParam(params.activity);
@@ -98,6 +101,7 @@ export default async function FeedPage({
     requestedSort === "oldest" || requestedSort === "title"
       ? requestedSort
       : "newest";
+  const searchTerm = requestedQuery?.trim().slice(0, 120) ?? "";
   const view = singleParam(params.view) === "list" ? "list" : "grid";
   const selectedActivity = activityCategories.some(
     (category) => category.id === requestedActivity,
@@ -137,6 +141,10 @@ export default async function FeedPage({
 
   if (selectedEntityId)
     filters.push(eq(documentEntities.entityId, selectedEntityId));
+  if (searchTerm) {
+    const textSearch = buildDocumentTextSearch(searchTerm);
+    if (textSearch) filters.push(textSearch);
+  }
   if (selectedDocumentType)
     filters.push(
       eq(
@@ -198,6 +206,7 @@ export default async function FeedPage({
   function viewHref(nextView: "grid" | "list") {
     const query = new URLSearchParams();
     if (selectedEntityId) query.set("entity", selectedEntityId);
+    if (searchTerm) query.set("q", searchTerm);
     if (fromDate && requestedFrom) query.set("from", requestedFrom);
     if (toDate && requestedTo) query.set("to", requestedTo);
     if (selectedActivity) query.set("activity", selectedActivity);
@@ -270,6 +279,20 @@ export default async function FeedPage({
               <h2>Refine your feed</h2>
               <p>Filter by institution, connection and update type.</p>
             </div>
+            <label className="feed-filter-field">
+              Search documents
+              <input
+                type="search"
+                name="q"
+                defaultValue={searchTerm}
+                maxLength={120}
+                placeholder="Title, text, source or entity"
+              />
+            </label>
+            <p className="filter-console-note feed-search-note">
+              Searches titles, summaries, full text, source details, and linked
+              entity names when that text is available.
+            </p>
             <label className="feed-filter-field">
               Entity
               <select

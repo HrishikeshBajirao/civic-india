@@ -2241,3 +2241,159 @@ input {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
+
+.entity-publication-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px 14px;
+  margin-top: 25px;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+}
+
+.entity-publication-search .button {
+  min-height: 40px;
+}
+
+.entity-publication-search-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.entity-search-results {
+  margin-top: 28px;
+}
+
+.entity-search-results-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.entity-search-results-heading .eyebrow {
+  margin: 0 0 7px;
+}
+
+.entity-search-results-heading h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(21px, 3vw, 28px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.entity-search-result-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.entity-search-result {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
+  padding: 19px 21px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--white);
+}
+
+.entity-search-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.entity-search-result-meta span {
+  color: #456451;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.entity-search-result h3 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.entity-search-result > p {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.entity-search-result-entities {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.entity-search-result-entities > span {
+  font-weight: 700;
+}
+
+.entity-search-result-entities a {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--green-light);
+  color: #456451;
+  font-weight: 650;
+}
+
+.entity-search-result-entities a:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.entity-search-result .feed-card-source {
+  margin-top: 0;
+}
+
+.entity-search-empty {
+  margin-top: 15px;
+}
+
+.entity-search-empty h2 {
+  margin: 0;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 21px;
+  font-weight: 500;
+}
+
+@media (max-width: 560px) {
+  .entity-publication-search {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .entity-publication-search-note {
+    grid-column: auto;
+  }
+  .entity-search-results-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .entity-search-result {
+    padding: 16px;
+  }
+}
